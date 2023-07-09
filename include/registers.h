@@ -14,7 +14,7 @@ typedef uint8_t RegVal_8;
 typedef uint16_t RegVal_16;
 
 typedef enum RegIndex_8{
-    ACC,B,C,D,E,H,L,FLAGS
+    A,B,C,D,E,H,L,FLAGS
 }RegIndex_8;
 
 typedef enum RegIndex_16{
