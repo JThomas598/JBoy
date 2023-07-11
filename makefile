@@ -1,8 +1,7 @@
-MODULE_1 := registers
-MODULE_1_TEST := cputest
+MODULE_1 := cpu
 OBJ_FILES := main.o $(MODULE_1).o
-INC_FILES := $(MODULE_1).h
 INC_DIR := include
+INC_FILES := $(MODULE_1).h
 FLAGS := -Werror -Wpedantic -Wall
 TARGET := gb_emulator
 
