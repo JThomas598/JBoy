@@ -92,7 +92,7 @@
 #define LD_L_HL 0x6E
 #define LD_A_HL 0x7E
 //Load Immediate to Address in HL
-#define LD_HL_IMM 0x36
+#define LD__HL_IMM_IND 0x36
 //Load A to Address in HL and Increment HL
 #define LD_HL_A_INC 0x22
 //Load A to Address in HL and Decrement HL
@@ -154,9 +154,9 @@
 #define DEC_L 0x2D
 #define DEC_A 0x3D
 //Increment Contents of Address in HL
-#define INC_HL 0x34
+#define INC_HL_IND 0x34
 //Decrement Contents of Address in HL
-#define DEC_HL 0x35
+#define DEC_HL_IND 0x35
 //Decimal Adjust Accummulator
 #define DAA 0x27
 //Set Carry Flag, and Clear N/H Flags
@@ -250,7 +250,6 @@
 //Perform Bitwise AND on A with Contents of Address in HL 
 #define OR_HL 0xB6
 //Compare General Purpose Register and A (Same as subtract but doesn't modify A). Use flags to check comparison.
-#define CP_A 0xB7
 #define CP_B 0xB8
 #define CP_C 0xB9
 #define CP_D 0xBA
@@ -307,7 +306,7 @@
 //Return if Zero Flag Low
 #define RET_NZ 0xC0
 //Return if Carry Flag Low
-#define RET_NZ 0xD0
+#define RET_NC 0xD0
 //Jump to Immediate Address if Zero Flag Low
 #define JP_NZ 0xC2
 //Jump to Immediate Address if Carry Flag Low
