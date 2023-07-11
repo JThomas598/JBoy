@@ -4,14 +4,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define NUM_REGS_8 8
-#define NUM_REGS_16 4
+constexpr uint8_t NUM_REGS_8 = 8;
+constexpr uint8_t NUM_REGS_16 = 4;
 
 //FLAG MASKS
-#define ZERO_FLAG 0b10000000
-#define SUBTRACT_FLAG 0b01000000
-#define HALF_CARRY_FLAG 0b00100000
-#define CARRY_FLAG 0b00010000
+constexpr uint8_t ZERO_FLAG = 0b10000000;
+constexpr uint8_t SUBTRACT_FLAG = 0b01000000;
+constexpr uint8_t HALF_CARRY_FLAG = 0b00100000;
+constexpr uint8_t CARRY_FLAG = 0b00010000;
 
 typedef uint8_t RegVal_8;
 typedef uint16_t RegVal_16;

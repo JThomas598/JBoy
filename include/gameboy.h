@@ -1,6 +1,6 @@
 #include "cpu.h"
 
-#define MEM_SIZE 65536
+constexpr uint16_t MEM_SIZE = 65536;
 
 class Gameboy{
     private:
