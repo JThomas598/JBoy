@@ -1,8 +1,8 @@
-#include "registers.h"
+#include "cpu.h"
 #include <stdexcept>
 
 
-Registers::Registers(){
+CPU::CPU(){
     for(int i = 0; i <= NUM_REGS_8; i++){
         regs_8[i] = 0;
     }
@@ -11,32 +11,8 @@ Registers::Registers(){
     }
 }
 
-RegVal_8 Registers::Read(RegIndex_8 reg){
-    return regs_8[reg]; 
-}
-
-RegVal_16 Registers::Read(RegIndex_16 reg){
-    return regs_16[reg];
-}
-
-RegVal_8 Registers::Write(RegIndex_8 reg, RegVal_8 val){
-    if(reg < 0 || reg > NUM_REGS_8){
-        throw std::out_of_range("Register Index Error: Provided RegIndex out of range");
-    }
-    regs_8[reg] = val;
-    return val;
-}
-
-RegVal_16 Registers::Write(RegIndex_16 reg, RegVal_16 val){
-    if(reg < 0 || reg > NUM_REGS_16){
-        throw std::out_of_range("Register Index Error: Provided RegIndex out of range");
-    }
-    regs_16[reg] = val;
-    return val;
-}
-
-void Registers::Print(){
-    printf("ACC:   0x%02x\n", regs_8[A]);
+void CPU::Print(){
+    printf("A:   0x%02x\n", regs_8[A]);
     printf("B:     0x%02x\n", regs_8[B]);
     printf("C:     0x%02x\n", regs_8[C]);
     printf("D:     0x%02x\n", regs_8[D]);
