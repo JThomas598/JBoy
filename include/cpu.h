@@ -7,10 +7,6 @@
 #define NUM_REGS_8 8
 #define NUM_REGS_16 4
 
-#define ROM_BANK_SIZE 32768
-#define WRAM_SIZE 8192
-#define EX_RAM_SIZE 8192
-
 //FLAG MASKS
 #define ZERO_FLAG 0b10000000
 #define SUBTRACT_FLAG 0b01000000
@@ -32,88 +28,246 @@ class CPU{
     private:
         RegVal_8 regs_8[NUM_REGS_8];
         RegVal_16 regs_16[NUM_REGS_16];
-        RegVal_8 rom[ROM_BANK_SIZE];
-        RegVal_8 wram[WRAM_SIZE];
-        RegVal_8 ex_ram[EX_RAM_SIZE];
-
-        /**
-            @brief Swaps the upper and lower nibble of the indexed 8-bit register.
-
-            @param reg the register to be swapped.
-
-            @return the new swapped value of the register.
-        */
-        RegVal_8 Swap(RegIndex_8 reg);
-        /**
-            @brief Shifts the indexed register rightward.
-
-            @param reg the register to be shifted.
-
-            @return the new shifted value of the register.
-        */
-        RegVal_8 ShiftRight(RegIndex_8 reg);
-        /**
-            @brief Shifts the indexed register rightward.
-
-            @param reg the register to be shifted.
-
-            @return the new shifted value of the register.
-        */
-        RegVal_8 ShiftLeft(RegIndex_8 reg);
-        /**
-            @brief Returns the value of the indexed 8-bit register.
-
-            @param reg the register to be read from.
-
-            @return the 8-bit value within the requested register.
-        */
-        RegVal_8 GetReg(RegIndex_8 reg);
-        /**
-            @brief Returns the value of the indexed 16-bit register.
-
-            @param reg the general purpose register to be read from.
-
-            @return the 16-bit value within the requested register.
-        */
-        RegVal_16 GetReg(RegIndex_16 reg);
-        /**
-            @brief Overwrites the value of the indexed 8-bit register.
-
-            @param reg the general purpose register to be read from.
-
-            @return the 8-bit value within the requested register.
-        */
-        RegVal_8 SetReg(RegIndex_8 reg, RegVal_8 val);
-        /**
-            @brief Overwrites the value of the indexed 16-bit register.
-
-            @param reg the register to be overwritten.
-
-            @return the 16-bit value within the requested register.
-        */
-        RegVal_16 SetReg(RegIndex_16 reg, RegVal_16 val);
-        /**
-            @brief Prints a summary of the current register states.
-        */
     public:
         /**
             @brief Constructor
         */
         CPU();
         /**
-            @brief Loads the game into program memory.
+            @brief  Adds a general purpose register's value to reg A.
 
-            @param filename filename of the desired game.
+            @param reg register to add.
 
-            @return total bytes read during loading process.
+            @return New accumulator value.
         */
-        size_t LoadGame(std::string filename);
+        RegVal_8 AddReg(RegIndex_8 reg);
         /**
-            @brief Emulates one machine cycle
+            @brief  Adds the contents of the address in the HL register pair to reg A.
+
+            @return New accumulator value.
         */
-        void EmulateCycle();
+        RegVal_8 AddIndirect();
         /**
-            @brief Prints a summary of the current state of the registers
+            @brief  Adds an unsigned immediate to reg A.
+
+            @param reg Immediate to add.
+
+            @return New accumulator value.
         */
-        void Print();
+        RegVal_8 AddImm(RegVal_8 imm);
+        /**
+            @brief  Adds a general purpose register's value and the carry flag to reg A.
+
+            @param reg register to add.
+
+            @return New accumulator value.
+        */
+        RegVal_8 AddRegCarry(RegIndex_8 reg);
+        /**
+            @brief  Adds the contents of the address in the HL register pair,
+            along with the carry flag, to reg A.
+
+            @return New accumulator value.
+        */
+        RegVal_8 AddIndirectCarry();
+        /**
+            @brief  Adds an unsigned immediate and the carry flag to reg A.
+
+            @param imm Immediate to add.
+
+            @return New accumulator value.
+        */
+        RegVal_8 AddImmCarry(RegVal_8 imm);
+        /**
+            @brief  Subtracts a general purpose register's value from reg A.
+
+            @param reg register to subtract.
+
+            @return New accumulator value.
+        */
+        RegVal_8 SubReg(RegIndex_8 reg);
+        /**
+            @brief  Subtracts the contents of the address in the HL register pair from reg A.
+
+            @return New accumulator value.
+        */
+        RegVal_8 SubIndirect();
+        /**
+            @brief  Subtracts an unsigned immediate from reg A.
+
+            @param imm Immediate to subtract.
+
+            @return New accumulator value.
+        */
+        RegVal_8 SubImm(RegVal_8 imm);
+        /**
+            @brief  Subtracts a general purpose register's value and the carry flag to reg A.
+
+            @param reg register to subtract.
+
+            @return New accumulator value.
+        */
+        RegVal_8 SubRegCarry(RegIndex_8 reg);
+        /**
+            @brief  Subtracts the contents of the address in the HL register pair,
+            along with the carry flag, from reg A.
+
+            @return New accumulator value.
+        */
+        RegVal_8 SubIndirectCarry();
+        /**
+            @brief  Subtracts an unsigned immediate and the carry flag from reg A.
+
+            @param imm Immediate to subtract.
+
+            @return New accumulator value.
+        */
+        RegVal_8 SubImmCarry(RegVal_8 imm);
+        /**
+            @brief Subtracts a general purpose register from reg A (without modifying it) and sets flags
+            accordingly.
+
+            @param reg Register to compare.
+
+            @return New Accumulator value.
+        */
+       RegVal_8 CompareReg(RegIndex_8 reg);
+        /**
+            @brief Subtracts the contents of the address in the HL register pair from reg A 
+            (without modifying it) and sets flags accordingly.
+
+            @return Flag register state
+        */
+       RegVal_8 CompareIndirect();
+        /**
+            @brief Subtracts an immediate from reg A (without modifying it) and sets flags accordingly.
+
+            @param imm Immediate to compare.
+
+            @return Flag register state
+        */
+       RegVal_8 CompareImmediate(RegIndex_8 imm);
+        /**
+            @brief Increments a general purpose register.
+
+            @param reg register to increment.
+
+            @return New register value.
+        */
+       RegVal_8 IncrementReg(RegIndex_8 reg);
+        /**
+            @brief Increments the contents of the address in the HL register pair.
+
+            @return New data value.
+        */
+       RegVal_8 IncrementIndirect();
+        /**
+            @brief Decrements a general purpose register.
+
+            @param reg register to Decrement.
+
+            @return New register value.
+        */
+       RegVal_8 DecrementReg(RegIndex_8 reg);
+        /**
+            @brief Decrements the contents of the address in the HL register pair.
+
+            @return New data value.
+        */
+       RegVal_8 DecrementIndirect();
+        /**
+            @brief Perform bitwise AND on reg A with general purpose register.
+
+            @param reg register to AND.
+
+            @return New accumulator value.
+        */
+       RegVal_8 AndReg(RegIndex_8 reg);
+        /**
+            @brief Perform bitwise AND on reg A with contents of address in HL register pair.
+
+            @return New accumulator value.
+        */
+       RegVal_8 AndIndirect();
+        /**
+            @brief Perform bitwise AND on reg A with immediate.
+
+            @param imm immediate to AND.
+
+            @return New accumulator value.
+        */
+       RegVal_8 AndImm(RegVal_8 imm);
+        /**
+            @brief Perform bitwise OR on reg A with general purpose register.
+
+            @param reg register to OR.
+
+            @return New accumulator value.
+        */
+       RegVal_8 OrReg(RegIndex_8 reg);
+        /**
+            @brief Perform bitwise OR on reg A with contents of address in HL register pair.
+
+            @return New accumulator value.
+        */
+       RegVal_8 OrIndirect();
+        /**
+            @brief Perform bitwise OR on reg A with immediate.
+
+            @param imm immediate to OR.
+
+            @return New accumulator value.
+        */
+       RegVal_8 OrImm(RegVal_8 imm);
+        /**
+            @brief Perform bitwise XOR on reg A with general purpose register.
+
+            @param reg register to XOR.
+
+            @return New accumulator value.
+        */
+       RegVal_8 XorReg(RegIndex_8 reg);
+        /**
+            @brief Perform bitwise XOR on reg A with contents of address in HL register pair.
+
+            @return New accumulator value.
+        */
+       RegVal_8 XorIndirect();
+        /**
+            @brief Perform bitwise XOR on reg A with immediate.
+
+            @param imm immediate to XOR.
+
+            @return New accumulator value.
+        */
+       RegVal_8 XorImm(RegVal_8 imm);
+        /**
+            @brief Perform bitwise XOR on reg A with contents of address in HL register pair.
+
+            @return New accumulator value.
+        */
+        /**
+            @brief Flips the carry flag, and clears the N/H flags.
+
+            @return New flag value.
+        */
+       RegVal_8 CompCarryFlag();
+        /**
+            @brief Sets the carry flag, and clears the N/H flags.
+
+            @return New flag value.
+        */
+       RegVal_8 SetCarryFlag();
+        /**
+            @brief Figuring this one out...
+
+            @return New accumulator value.
+        */
+       RegVal_8 DecimalAdjustAcc();
+        /**
+            @brief Flips all the bits in reg A and sets the N/H flags.
+
+            @return New accumulator value.
+        */
+       RegVal_8 CompAcc();
 };
