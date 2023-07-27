@@ -2,7 +2,7 @@ MODULE_1 := cpu
 OBJ_FILES := main.o $(MODULE_1).o
 INC_DIR := include
 INC_FILES := $(MODULE_1).h
-FLAGS := -Werror -Wpedantic -Wall
+FLAGS := -Werror -Wpedantic -Wall -g
 TARGET := gb_emulator
 
 $(TARGET): build/$(MODULE_1).o build/main.o

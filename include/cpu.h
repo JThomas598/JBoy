@@ -50,7 +50,7 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 addReg(RegIndex_8 reg);
+        RegVal_8 addAReg(RegIndex_8 reg);
         /**
             @brief  Adds the contents of the address in HL to reg A.
 
@@ -414,12 +414,6 @@ class CPU{
         */
        RegVal_8 loadAIndirectInc();
        /**
-        * @brief Loads A into the address in HL and increments HL
-        * 
-        * @return Value in destination register
-        */
-       RegVal_8 loadIndirectADec();
-       /**
         * @brief Loads a 16 bit immediate to a GP register pair.
         * 
         * @param upper_reg register containing the upper byte
@@ -568,77 +562,89 @@ class CPU{
         * 
         * @return New BC value
         */
-       RegVal_16 IncBC();
+       RegVal_16 incBC();
        /**
         * @brief Increment DE.
         * 
         * @return New DE value
         */
-       RegVal_16 IncDE();
+       RegVal_16 incDE();
        /**
         * @brief Increment HL.
         * 
         * @return New HL value
         */
-       RegVal_16 IncHL();
+       RegVal_16 incHL();
        /**
         * @brief Increment Stack Pointer.
         * 
         * @return New stack pointer value
         */
-       RegVal_16 DecSP();
+       RegVal_16 incSP();
        /**
         * @brief Decrement BC.
         * 
         * @return New BC value
         */
-       RegVal_16 DecBC();
+       RegVal_16 decBC();
        /**
         * @brief Decrement DE.
         * 
         * @return New DE value
         */
-       RegVal_16 DecDE();
+       RegVal_16 decDE();
        /**
         * @brief Decrement HL.
         * 
         * @return New HL value
         */
-       RegVal_16 DecHL();
+       RegVal_16 decHL();
        /**
         * @brief Decrement Stack Pointer.
         * 
         * @return New stack pointer value
         */
-       RegVal_16 DecSP();
+       RegVal_16 decSP();
        /**
         * @brief Add BC to HL.
         * 
         * @return New HL value.
         */
-       RegVal_16 AddHLBC();
+       RegVal_16 addHLBC();
        /**
         * @brief Add DE to HL.
         * 
         * @return New HL value.
         */
-       RegVal_16 AddHLDE();
+       RegVal_16 addHLDE();
        /**
         * @brief Add HL to HL.
         * 
         * @return New HL value.
         */
-       RegVal_16 AddHLHL();
+       RegVal_16 addHLHL();
        /**
         * @brief Add SP to HL.
         * 
         * @return New HL value.
         */
-       RegVal_16 AddHLSP();
+       RegVal_16 addHLSP();
        /**
         * @brief Add signed immediate to stack pointer.
         * 
         * @return New HL value.
         */
-       RegVal_16 AddSPImm(int8_t imm);
+       RegVal_16 addSPImm(int8_t imm);
+       /**
+        * @brief Increment program counter.
+        * 
+        * @return New PC value.
+        */
+       RegVal_16 incPC(RegVal_8 imm);
+       /**
+        * @brief Get Program Counter Value
+        * 
+        * @return New PC value.
+        */
+       RegVal_16 getPC();
 };

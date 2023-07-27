@@ -2,9 +2,10 @@
 
 constexpr uint16_t MEM_SIZE = 65536;
 
+extern char mem[MEM_SIZE];
+
 class Gameboy{
     private:
-        char mem[MEM_SIZE];
         CPU cpu;
         //ppu comes later
     public:
