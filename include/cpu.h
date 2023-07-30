@@ -1,8 +1,12 @@
+#ifndef CPU_H
+#define CPU_H
+
 #include "instructions.h"
 #include <stdlib.h>
 #include <iostream>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 constexpr uint8_t NUM_REGS_8 = 8;
 constexpr uint8_t NUM_REGS_16 = 4;
@@ -23,6 +27,11 @@ typedef enum Condition{
     SUBTRACT,
 }Condition;
 
+typedef enum Operation{
+    ADD,
+    SUB,
+}Operation;
+
 typedef uint8_t RegVal_8;
 typedef uint16_t RegVal_16;
 
@@ -38,6 +47,12 @@ class CPU{
     private:
         RegVal_8 regs_8[NUM_REGS_8];
         RegVal_16 regs_16[NUM_REGS_16];
+
+        bool fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry);
+        bool halfCarry(RegVal_8 prev, RegVal_8 curr);
+        RegVal_16 getRegPair(RegIndex_8 msr, RegIndex_8 lsr);
+        void setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val);
+        
     public:
         /**
             @brief Constructor
@@ -50,7 +65,7 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 addAReg(RegIndex_8 reg);
+        RegVal_8 addReg(RegIndex_8 reg);
         /**
             @brief  Adds the contents of the address in HL to reg A.
 
@@ -139,7 +154,7 @@ class CPU{
 
             @param reg Register to compare.
 
-            @return New Accumulator value.
+            @return Flag register state.
         */
        RegVal_8 compareReg(RegIndex_8 reg);
         /**
@@ -156,7 +171,7 @@ class CPU{
 
             @return Flag register state
         */
-       RegVal_8 compareImmediate(RegIndex_8 imm);
+       RegVal_8 compareImmediate(RegVal_8 imm);
         /**
             @brief Increments a GP register.
 
@@ -352,11 +367,11 @@ class CPU{
         * @brief Loads the contents of the address specified by a 16 bit immediate into 
         * register A.
         * 
-        * @param imm immediate value
+        * @param addr immediate address
         * 
         * @return Value in register A
         */
-       RegVal_8 loadAImmIndirect(RegVal_16 imm);
+       RegVal_8 loadAImmIndirect(RegVal_16 addr);
        /**
         * @brief Loads register A to the address specified by a 16 bit immediate.
         * 
@@ -397,13 +412,13 @@ class CPU{
         * @brief Loads the contents of the address in HL to A and decrements
         * HL.
         *
-        * @return Value in specified location
+        * @return Value in register A
         */
        RegVal_8 loadAIndirectDec();
        /**
         * @brief Loads A into the address in HL and decrements HL
         *
-        * @return Value in register A
+        * @return Value in specified location
         */
        RegVal_8 loadIndirectADec();
        /**
@@ -414,23 +429,31 @@ class CPU{
         */
        RegVal_8 loadAIndirectInc();
        /**
+        * @brief Loads A into the address in HL and increments HL
+        *
+        * @return Value in specified location
+        */
+       RegVal_8 loadIndirectAInc();
+       /**
         * @brief Loads a 16 bit immediate to a GP register pair.
         * 
-        * @param upper_reg register containing the upper byte
+        * @param msr register containing the upper byte
         * 
-        * @param lower_reg register containing the lower byte
+        * @param lsr register containing the lower byte
         * 
-        * @return Value in destination register
+        * @param imm immediate 16-bit value
+        * 
+        * @return Value in register pair
         */
-       RegVal_16 loadRegPairImm(RegIndex_8 upper_reg, RegIndex_8 lower_reg, RegVal_16 imm);
+       RegVal_16 loadRegPairImm(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 imm);
        /**
         * @brief Loads stack pointer to the address specified by a 16-bit immediate.
         * 
-        * @param imm immediate value
+        * @param addr immediate addr
         * 
-        * @return Value in destination register
+        * @return Value in specified location
         */
-       RegVal_16 loadSpIndirect(RegVal_16 imm);
+       RegVal_16 loadIndirectSP(RegVal_16 addr);
        /**
         * @brief Loads stack pointer with HL.
         * 
@@ -438,29 +461,29 @@ class CPU{
         * 
         * @return Value in destination register
         */
-       RegVal_16 loadSp();
+       RegVal_16 loadSPHL();
        /**
         * @brief Pushes 16-bit value in GP register pair to stack, also moving
         * stack pointer accordingly.
         * 
-        * @param upper_reg register containing upper byte
+        * @param msr register containing upper byte
         * 
-        * @param lower_reg register containing lower byte
+        * @param lsr register containing lower byte
         * 
-        * @return New stack value
+        * @return New stack pointer value
         */
-       RegVal_16 push(RegIndex_8 upper_reg, RegIndex_8 lower_reg);
+       RegVal_16 push(RegIndex_8 msr, RegIndex_8 lsr);
        /**
         * @brief Pops a 16-bit value off the stack into GP register pair 
         * ,also moving the stack pointer accordingly.
         * 
-        * @param upper_reg register containing upper byte
+        * @param msr register containing upper byte
         * 
-        * @param lower_reg register containing lower byte
+        * @param lsr register containing lower byte
         * 
-        * @return Value in destination register
+        * @return New stack pointer value
         */
-       RegVal_16 pop(RegIndex_8 upper_reg, RegIndex_8 lower_reg);
+       RegVal_16 pop(RegIndex_8 msr, RegIndex_8 lsr);
        /**
         * @brief Jump to an immediate address.
         * 
@@ -647,4 +670,7 @@ class CPU{
         * @return New PC value.
         */
        RegVal_16 getPC();
+
+       void Print();
 };
+#endif

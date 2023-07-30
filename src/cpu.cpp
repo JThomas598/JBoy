@@ -661,7 +661,36 @@ RegVal_8 CPU::loadIndirectAInc(){
     return mem[addr];
 }
 
+RegVal_16 CPU::loadRegPairImm(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 imm){
+    setRegPair(msr, lsr, imm);
+    return getRegPair(msr, lsr);
+}
 
+RegVal_16 CPU::loadIndirectSP(RegVal_16 addr){
+    mem[addr] = regs_16[SP];
+    return mem[addr];
+}
+
+RegVal_16 CPU::loadSPHL(){
+    regs_16[SP] = getRegPair(H,L);
+    return regs_16[SP];
+}
+
+RegVal_16 CPU::push(RegIndex_8 msr, RegIndex_8 lsr){
+    mem[regs_16[SP]] = regs_8[msr];
+    regs_16[SP]--;
+    mem[regs_16[SP]] = regs_8[lsr];
+    regs_16[SP]--;
+    return regs_16[SP];
+}
+
+RegVal_16 CPU::pop(RegIndex_8 msr, RegIndex_8 lsr){
+    regs_16[SP]++;
+    regs_8[lsr] = mem[regs_16[SP]];
+    regs_16[SP]++;
+    regs_8[msr] = mem[regs_16[SP]];
+    return regs_16[SP];
+}
 
 void CPU::Print(){
     printf("----REGS----\n");
