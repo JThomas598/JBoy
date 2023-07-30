@@ -43,6 +43,19 @@ bool CPU::fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry){
     }
 }
 
+RegVal_16 CPU::getRegPair(RegIndex_8 msr, RegIndex_8 lsr){
+    RegVal_16 retval = 0x0000;
+    retval |= regs_8[msr];
+    retval = retval << 8;
+    retval |= regs_8[lsr];
+    return retval;
+}
+
+void CPU::setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val){
+    regs_8[msr] = val >> 8;
+    regs_8[lsr] = val & 0x00FF;
+}
+
 bool CPU::halfCarry(RegVal_8 prev, RegVal_8 curr){
     if(prev >> 4 != curr >> 4){
         return true;
@@ -72,10 +85,7 @@ RegVal_8 CPU::addReg(RegIndex_8 reg){
 
 RegVal_8 CPU::addIndirect(){
     RegVal_8 prev = regs_8[A];
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] += mem[addr];
     if(fullCarry(prev, mem[addr], ADD, false)) 
         regs_8[F] |= CARRY_FLAG;
@@ -134,10 +144,7 @@ RegVal_8 CPU::addRegCarry(RegIndex_8 reg){
 
 RegVal_8 CPU::addIndirectCarry(){
     RegVal_8 prev = regs_8[A];
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] += mem[addr];
     regs_8[A] += regs_8[F] & CARRY_FLAG ? 1 : 0;
     if(fullCarry(prev, mem[addr], ADD, true)) 
@@ -197,10 +204,7 @@ RegVal_8 CPU::subReg(RegIndex_8 reg){
 
 RegVal_8 CPU::subIndirect(){
     RegVal_8 prev = regs_8[A];
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] -= mem[addr];
     if(fullCarry(prev, mem[addr], SUB, false)) 
         regs_8[F] |= CARRY_FLAG;
@@ -259,10 +263,7 @@ RegVal_8 CPU::subRegCarry(RegIndex_8 reg){
 
 RegVal_8 CPU::subIndirectCarry(){
     RegVal_8 prev = regs_8[A];
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] -= mem[addr];
     regs_8[A] -= regs_8[F] & CARRY_FLAG ? 1 : 0;
     if(fullCarry(prev, mem[addr], SUB, true)) 
@@ -322,10 +323,7 @@ RegVal_8 CPU::compareReg(RegIndex_8 reg){
 
 RegVal_8 CPU::compareIndirect(){
     RegVal_8 prev = regs_8[A];
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     RegVal_8 res = regs_8[A] - mem[addr];
     if(fullCarry(prev, mem[addr], SUB, false)) 
         regs_8[F] |= CARRY_FLAG;
@@ -378,10 +376,7 @@ RegVal_8 CPU::incrementReg(RegIndex_8 reg){
 }
 
 RegVal_8 CPU::incrementIndirect(){
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     RegVal_8 prev = mem[addr];
     mem[addr] += 1;
     if(halfCarry(prev, mem[addr]))
@@ -412,10 +407,7 @@ RegVal_8 CPU::decrementReg(RegIndex_8 reg){
 }
 
 RegVal_8 CPU::decrementIndirect(){
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     RegVal_8 prev = mem[addr];
     mem[addr] -= 1;
     if(halfCarry(prev, mem[addr]))
@@ -443,10 +435,7 @@ RegVal_8 CPU::andReg(RegIndex_8 reg){
 }
 
 RegVal_8 CPU::andIndirect(){
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] &= mem[addr];
     if(regs_8[A] == 0)
         regs_8[F] |= ZERO_FLAG;
@@ -483,10 +472,7 @@ RegVal_8 CPU::orReg(RegIndex_8 reg){
 }
 
 RegVal_8 CPU::orIndirect(){
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] |= mem[addr];
     if(regs_8[A] == 0)
         regs_8[F] |= ZERO_FLAG;
@@ -523,10 +509,7 @@ RegVal_8 CPU::xorReg(RegIndex_8 reg){
 }
 
 RegVal_8 CPU::xorIndirect(){
-    RegVal_16 addr = 0x0000;
-    addr |= regs_8[H];
-    addr = addr << 8;
-    addr |= regs_8[L];
+    RegVal_16 addr = getRegPair(H,L);
     regs_8[A] ^= mem[addr];
     if(regs_8[A] == 0)
         regs_8[F] |= ZERO_FLAG;
@@ -576,13 +559,112 @@ RegVal_8 CPU::compAcc(){
     return regs_8[A];
 }
 
+RegVal_8 CPU::loadRegReg(RegIndex_8 dst,RegIndex_8 src){
+    regs_8[dst] = regs_8[src];
+    return regs_8[dst];
+}
 
 RegVal_8 CPU::loadRegImm(RegIndex_8 reg, RegVal_8 imm){
     regs_8[reg] = imm;
     return regs_8[reg];
 }
-    
+
+RegVal_8 CPU::loadRegIndirect(RegIndex_8 reg){
+    RegVal_16 addr = getRegPair(H,L);
+    regs_8[reg] = mem[addr];
+    return regs_8[reg];
+}
+
+RegVal_8 CPU::loadIndirectReg(RegIndex_8 reg){
+    RegVal_16 addr = getRegPair(H,L);
+    mem[addr] = regs_8[reg];
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadIndirectImm(RegVal_8 imm){
+    RegVal_16 addr = getRegPair(H,L);
+    mem[addr] = imm;
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadABC(){
+    RegVal_16 addr = getRegPair(B,C);
+    regs_8[A] = mem[addr];
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadADE(){
+    RegVal_16 addr = getRegPair(D,E);
+    regs_8[A] = mem[addr];
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadAImmIndirect(RegVal_16 addr){
+    regs_8[A] = mem[addr];
+    return mem[addr];
+}
+
+RegVal_8 CPU::loadImmAIndirect(RegVal_16 addr){
+    mem[addr] = regs_8[A];
+    return mem[addr];
+}
+
+RegVal_8 CPU::loadHighAC(){
+    regs_8[A] = mem[0xFF00 + C];
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadHighCA(){
+    mem[0xFF00 + C] = regs_8[A];
+    return mem[0xFF00 + C];
+}
+
+RegVal_8 CPU::loadHighAImm(RegVal_8 imm){
+    regs_8[A] = mem[0xFF00 + imm];
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadHighImmA(RegVal_8 imm){
+    mem[0xFF00 + imm] = regs_8[A];
+    return mem[0xFF00 + imm];
+}
+
+RegVal_8 CPU::loadAIndirectDec(){
+    RegVal_16 addr = getRegPair(H,L); 
+    regs_8[A] = mem[addr];
+    addr -= 1;
+    setRegPair(H,L,addr);
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadIndirectADec(){
+    RegVal_16 addr = getRegPair(H,L); 
+    mem[addr] = regs_8[A]; 
+    addr -= 1;
+    setRegPair(H,L,addr);
+    return mem[addr];
+}
+
+RegVal_8 CPU::loadAIndirectInc(){
+    RegVal_16 addr = getRegPair(H,L); 
+    regs_8[A] = mem[addr];
+    addr += 1;
+    setRegPair(H,L,addr);
+    return regs_8[A];
+}
+
+RegVal_8 CPU::loadIndirectAInc(){
+    RegVal_16 addr = getRegPair(H,L); 
+    mem[addr] = regs_8[A]; 
+    addr += 1;
+    setRegPair(H,L,addr);
+    return mem[addr];
+}
+
+
+
 void CPU::Print(){
+    printf("----REGS----\n");
     printf("ACC:   0x%02x\n", regs_8[A]);
     printf("B:     0x%02x\n", regs_8[B]);
     printf("C:     0x%02x\n", regs_8[C]);
