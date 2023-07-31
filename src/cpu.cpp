@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 char mem[MEM_SIZE];
+bool IME = true;
 
 CPU::CPU(){
     for(int i = 0; i < NUM_REGS_8; i++){
@@ -12,6 +13,7 @@ CPU::CPU(){
         regs_16[i] = 0;
     }
     regs_16[PC] = 0x0100;
+    regs_16[SP] = 0xFFFE;
 }
 
 bool CPU::fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry){
@@ -63,6 +65,20 @@ bool CPU::halfCarry(RegVal_8 prev, RegVal_8 curr){
     return false;
 }
 
+void CPU::pushPC(){
+    mem[regs_16[SP]] = regs_16[PC] >> 8;
+    regs_16[SP]--;
+    mem[regs_16[SP]] = regs_16[PC] & 0x00FF;
+    regs_16[SP]--;
+}
+
+void CPU::popPC(){
+    regs_16[SP]++;
+    regs_16[PC] |= mem[regs_16[SP]];
+    regs_16[PC] = regs_16[PC] << 8;
+    regs_16[SP]++;
+    regs_16[PC] |= mem[regs_16[SP]];
+}
 
 RegVal_8 CPU::addReg(RegIndex_8 reg){
     RegVal_8 prev = regs_8[A];
@@ -692,7 +708,255 @@ RegVal_16 CPU::pop(RegIndex_8 msr, RegIndex_8 lsr){
     return regs_16[SP];
 }
 
-void CPU::Print(){
+RegVal_16 CPU::jump(RegVal_16 addr){
+    regs_16[PC] = addr;
+    return regs_16[PC];
+}
+
+RegVal_16 CPU::jumpRel(int8_t imm){
+    regs_16[PC] += imm; 
+    return regs_16[PC];
+}
+
+bool CPU::jumpRelCond(int8_t imm, Condition cond){
+    switch(cond){
+        case ZERO:
+            if(regs_8[F] & ZERO_FLAG){
+                regs_16[PC] += imm;
+                return true;
+            }
+            break;
+        case NOT_ZERO:
+            if(!(regs_8[F] & ZERO_FLAG)){
+                regs_16[PC] += imm;
+                return true;
+            }
+            break;
+        case CARRY:
+            if(regs_8[F] & CARRY_FLAG){
+                regs_16[PC] += imm;
+                return true;
+            }
+            break;
+        case NO_CARRY:
+            if(!(regs_8[F] & CARRY_FLAG)){
+                regs_16[PC] += imm;
+                return true;
+            }
+            break;
+        default:
+            return false;
+            break;
+    }
+    return false;
+}
+
+bool CPU::jumpCond(RegVal_16 addr, Condition cond){
+    switch(cond){
+        case ZERO:
+            if(regs_8[F] & ZERO_FLAG){
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        case NOT_ZERO:
+            if(!(regs_8[F] & ZERO_FLAG)){
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        case CARRY:
+            if(regs_8[F] & CARRY_FLAG){
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        case NO_CARRY:
+            if(!(regs_8[F] & CARRY_FLAG)){
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        default:
+            return false;
+            break; 
+    }
+}
+
+RegVal_16 CPU::call(RegVal_16 addr){
+    pushPC();
+    regs_16[PC] = addr;
+    return regs_16[PC];
+}
+
+bool CPU::callCond(RegVal_16 addr, Condition cond){
+    switch(cond){
+        case ZERO:
+            if(regs_8[F] & ZERO_FLAG){
+                pushPC();
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        case NOT_ZERO:
+            if(!(regs_8[F] & ZERO_FLAG)){
+                pushPC();
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        case CARRY:
+            if(regs_8[F] & CARRY_FLAG){
+                pushPC();
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        case NO_CARRY:
+            if(!(regs_8[F] & CARRY_FLAG)){
+                pushPC();
+                regs_16[PC] = addr;
+                return true;
+            }
+            break;
+        default:
+            return false;
+            break; 
+    }
+    return false;
+}
+
+RegVal_16 CPU::ret(){
+    popPC();
+    return regs_16[PC];
+}
+
+bool CPU::retCond(Condition cond){
+    switch(cond){
+        case ZERO:
+            if(regs_8[F] & ZERO_FLAG){
+                popPC();
+                return true;
+            }
+            break;
+        case NOT_ZERO:
+            if(!(regs_8[F] & ZERO_FLAG)){
+                popPC();
+                return true;
+            }
+            break;
+        case CARRY:
+            if(regs_8[F] & CARRY_FLAG){
+                popPC();
+                return true;
+            }
+            break;
+        case NO_CARRY:
+            if(!(regs_8[F] & CARRY_FLAG)){
+                popPC();
+                return true;
+            }
+            break;
+        default:
+            return false;
+            break; 
+    }
+    return regs_16[PC];
+}
+
+RegVal_16 CPU::reti(){
+    ret();
+    IME = 1;
+    return regs_16[PC];
+}
+
+RegVal_16 CPU::rst(RegVal_8 addr){
+    call(addr);
+    return regs_16[PC];
+}
+
+void CPU::halt(){/*do i need a func for this?*/}
+
+void CPU::stop(){/*or this?*/}
+
+void CPU::di(){
+    IME = 0;
+}
+
+void CPU::ei(){
+    IME = 1;
+}
+
+RegVal_16 CPU::incBC(){
+    RegVal_16 val = getRegPair(B,C);
+    val++;
+    setRegPair(B,C,val);
+    return val;
+}
+
+RegVal_16 CPU::incDE(){
+    RegVal_16 val = getRegPair(D,E);
+    val++;
+    setRegPair(D,E,val);
+    return val;
+}
+
+RegVal_16 CPU::incHL(){
+    RegVal_16 val = getRegPair(H,L);
+    val++;
+    setRegPair(H,L,val);
+    return val;
+}
+
+RegVal_16 CPU::incSP(){
+    regs_16[SP]++;
+    return regs_16[SP];
+}
+
+RegVal_16 CPU::decBC(){
+    RegVal_16 val = getRegPair(B,C);
+    val--;
+    setRegPair(B,C,val);
+    return val;
+}
+
+RegVal_16 CPU::decDE(){
+    RegVal_16 val = getRegPair(D,E);
+    val--;
+    setRegPair(D,E,val);
+    return val;
+}
+
+RegVal_16 CPU::decHL(){
+    RegVal_16 val = getRegPair(H,L);
+    val--;
+    setRegPair(H,L,val);
+    return val;
+}
+
+RegVal_16 CPU::decSP(){
+    regs_16[SP]--;
+    return regs_16[SP];
+}
+
+RegVal_16 CPU::addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr){
+    RegVal_16 val = getRegPair(H,L) + getRegPair(msr,lsr);
+    setRegPair(H,L,val);
+    return val;
+}
+
+RegVal_16 CPU::addHLSP(){
+    RegVal_16 val = getRegPair(H,L) + regs_16[SP];
+    setRegPair(H,L,val);
+    return val;
+}
+
+RegVal_16 CPU::addSPImm(int8_t imm){
+    regs_16[SP] += imm;
+    return regs_16[SP];
+}
+
+void CPU::PrintStatus(){
     printf("----REGS----\n");
     printf("ACC:   0x%02x\n", regs_8[A]);
     printf("B:     0x%02x\n", regs_8[B]);
@@ -735,3 +999,15 @@ void CPU::Print(){
         printf("0\n");
     }
 }    
+
+void CPU::printReg(RegIndex_8 reg){
+    printf("0x%02x\n", regs_8[reg]);
+}
+
+void CPU::printRegPair(RegIndex_8 msr, RegIndex_8 lsr){
+    printf("0x%02x%02x\n", regs_8[msr],regs_8[lsr]);
+}
+
+void CPU::printReg(RegIndex_16 reg){
+    printf("0x%04x\n", regs_16[reg]);
+}
