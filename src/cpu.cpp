@@ -615,6 +615,18 @@ RegVal_8 CPU::loadADE(){
     return regs_8[A];
 }
 
+RegVal_8 CPU::loadBCA(){
+    RegVal_16 addr = getRegPair(B,C);
+    mem[addr] = regs_8[A];
+    return mem[addr];
+}
+
+RegVal_8 CPU::loadDEA(){
+    RegVal_16 addr = getRegPair(D,E);
+    mem[addr] = regs_8[A];
+    return mem[addr];
+}
+
 RegVal_8 CPU::loadAImmIndirect(RegVal_16 addr){
     regs_8[A] = mem[addr];
     return mem[addr];
@@ -781,6 +793,7 @@ bool CPU::jumpCond(RegVal_16 addr, Condition cond){
             return false;
             break; 
     }
+    return false;
 }
 
 RegVal_16 CPU::call(RegVal_16 addr){
@@ -954,6 +967,15 @@ RegVal_16 CPU::addHLSP(){
 RegVal_16 CPU::addSPImm(int8_t imm){
     regs_16[SP] += imm;
     return regs_16[SP];
+}
+
+RegVal_16 CPU::getPC(){
+    return regs_16[PC];
+}
+
+RegVal_16 CPU::incPC(){
+    regs_16[PC]++;
+    return regs_16[PC];
 }
 
 void CPU::PrintStatus(){
