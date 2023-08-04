@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#ifndef INSTRUCTIONS_H
+#define INSTRUCTIONS_H
 //MISCELLANEOUS===========================================================
 constexpr uint8_t NOP = 0x00;
 constexpr uint8_t STOP = 0x10;
@@ -94,7 +96,7 @@ constexpr uint8_t LD_E_HL = 0x5E;
 constexpr uint8_t LD_L_HL = 0x6E;
 constexpr uint8_t LD_A_HL = 0x7E;
 //Load Immediate to Address in HL
-constexpr uint8_t LD__HL_IMM_IND = 0x36;
+constexpr uint8_t LD_HL_IMM_IND = 0x36;
 //Load A to Address in HL and Increment HL
 constexpr uint8_t LD_HL_A_INC = 0x22;
 //Load A to Address in HL and Decrement HL
@@ -104,9 +106,9 @@ constexpr uint8_t LD_A_HL_INC = 0x2A;
 //Load Contents of Address in HL to A and Decrement HL
 constexpr uint8_t LD_A_HL_DEC = 0x3A;
 //Load A to = 0xFF00 + an immediate offset 
-constexpr uint8_t LDH_OFFSET_A = 0xE0;
+constexpr uint8_t LDH_IMM_A = 0xE0;
 //Load Contents of = 0xFF00 + an immediate offset to A
-constexpr uint8_t LDH_A_OFFSET = 0xF0;
+constexpr uint8_t LDH_A_IMM = 0xF0;
 //Load A to = 0xFF00 + an offset stored in C
 constexpr uint8_t LDH_C_A = 0xE2;
 //Load Contents of = 0xFF00 + an offset stored in C to A
@@ -133,7 +135,7 @@ constexpr uint8_t PUSH_DE = 0xD5;
 constexpr uint8_t PUSH_HL = 0xE5;
 constexpr uint8_t PUSH_AF = 0xF5;
 //Load Stack Pointer Value to Immediate Address
-constexpr uint8_t LD_ADDR_SP = 0x08;
+constexpr uint8_t LD_DIR_SP = 0x08;
 //Load HL to Stack Pointer
 constexpr uint8_t LD_SP_HL = 0xF9;
 //Load Stack Pointer Value Plus Immediate to HL
@@ -355,3 +357,5 @@ constexpr uint8_t RST_0x18 = 0xDF;
 constexpr uint8_t RST_0x28 = 0xEF;
 //Unconditional Function Call to 0x38
 constexpr uint8_t RST_0x38 = 0xFF;
+
+#endif
