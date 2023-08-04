@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+extern bool IME;
+
 constexpr uint8_t NUM_REGS_8 = 8;
 constexpr uint8_t NUM_REGS_16 = 4;
 
@@ -52,6 +54,8 @@ class CPU{
         bool halfCarry(RegVal_8 prev, RegVal_8 curr);
         RegVal_16 getRegPair(RegIndex_8 msr, RegIndex_8 lsr);
         void setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val);
+        void pushPC();
+        void popPC();
         
     public:
         /**
@@ -447,13 +451,21 @@ class CPU{
         */
        RegVal_16 loadRegPairImm(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 imm);
        /**
+        * @brief Loads a 16 bit immediate to the SP register.
+        * 
+        * @param imm immediate 16-bit value
+        * 
+        * @return Value in SP
+        */
+       RegVal_16 loadSPImm(RegVal_16 imm);
+       /**
         * @brief Loads stack pointer to the address specified by a 16-bit immediate.
         * 
         * @param addr immediate addr
         * 
         * @return Value in specified location
         */
-       RegVal_16 loadIndirectSP(RegVal_16 addr);
+       RegVal_16 loadDirectSP(RegVal_16 addr);
        /**
         * @brief Loads stack pointer with HL.
         * 
@@ -487,11 +499,11 @@ class CPU{
        /**
         * @brief Jump to an immediate address.
         * 
-        * @param imm immediate address
+        * @param addr immediate address
         * 
         * @return New PC value
         */
-       RegVal_16 jumpImm(RegVal_16 imm);
+       RegVal_16 jump(RegVal_16 addr);
        /**
         * @brief Jump imm addresses away from the current address. (imm is signed)
         * 
@@ -501,43 +513,43 @@ class CPU{
         */
        RegVal_16 jumpRel(int8_t imm);
        /**
-        * @brief Jump imm addresses away from the current address. (imm is signed)
+        * @brief Conditionally Jump imm addresses away from the current address. (imm is signed)
         * 
         * @param imm signed immediate offset
         * 
         * @param cond condition to be checked for
         * 
-        * @return New PC value
+        * @return true if condition passed, false if it didn't
         */
-       RegVal_16 jumpRelCond(int8_t imm, Condition cond);
+       bool jumpRelCond(int8_t imm, Condition cond);
        /**
         * @brief Conditional jump to immediate address.
         * 
-        * @param imm immediate address
+        * @param addr immediate address
         * 
         * @param cond condition to be checked for
         * 
-        * @return New PC value.
+        * @return true if condition passed, false if it didn't
         */
-       RegVal_16 jumpCond(RegVal_16 imm, Condition cond);
+       bool jumpCond(RegVal_16 addr, Condition cond);
        /**
         * @brief Call a function at an immediate address.
         * 
-        * @param imm immediate address
+        * @param addr immediate address
         * 
         * @return New PC value.
         */
-       RegVal_16 call(RegVal_16 imm);
+       RegVal_16 call(RegVal_16 addr);
        /**
         * @brief Conditionally call a function at an immediate address.
         * 
-        * @param imm immediate address
+        * @param addr immediate address
         * 
         * @param cond condition to be checked for
         * 
-        * @return New PC value.
+        * @return true if condition passed, false if it didn't
         */
-       RegVal_16 callCond(RegVal_16 imm, Condition cond);
+       bool callCond(RegVal_16 addr, Condition cond);
        /**
         * @brief Return from function.
         * 
@@ -549,9 +561,9 @@ class CPU{
         * 
         * @param imm immediate address
         * 
-        * @return New PC value.
+        * @return true if condition passed, false if it didn't
         */
-       RegVal_16 retCond(Condition cond);
+       bool retCond(Condition cond);
        /**
         * @brief Return from interrupt handler
         * 
@@ -629,23 +641,15 @@ class CPU{
         */
        RegVal_16 decSP();
        /**
-        * @brief Add BC to HL.
+        * @brief Add a GP register pair to HL
+        * 
+        * @param msr most significant register
+        * 
+        * @param lsr least significant register
         * 
         * @return New HL value.
         */
-       RegVal_16 addHLBC();
-       /**
-        * @brief Add DE to HL.
-        * 
-        * @return New HL value.
-        */
-       RegVal_16 addHLDE();
-       /**
-        * @brief Add HL to HL.
-        * 
-        * @return New HL value.
-        */
-       RegVal_16 addHLHL();
+       RegVal_16 addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr);
        /**
         * @brief Add SP to HL.
         * 
@@ -663,7 +667,7 @@ class CPU{
         * 
         * @return New PC value.
         */
-       RegVal_16 incPC(RegVal_8 imm);
+       RegVal_16 incPC();
        /**
         * @brief Get Program Counter Value
         * 
@@ -671,6 +675,10 @@ class CPU{
         */
        RegVal_16 getPC();
 
-       void Print();
+       void printStatus();
+
+       void printReg(RegIndex_8 reg);
+       void printReg(RegIndex_16 reg);
+       void printRegPair(RegIndex_8 msr, RegIndex_8 lsr);
 };
 #endif

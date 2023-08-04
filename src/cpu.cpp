@@ -694,7 +694,12 @@ RegVal_16 CPU::loadRegPairImm(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 imm){
     return getRegPair(msr, lsr);
 }
 
-RegVal_16 CPU::loadIndirectSP(RegVal_16 addr){
+RegVal_16 CPU::loadSPImm(RegVal_16 imm){
+    regs_16[SP] = imm;
+    return regs_16[SP];
+}
+
+RegVal_16 CPU::loadDirectSP(RegVal_16 addr){
     mem[addr] = regs_16[SP];
     return mem[addr];
 }
@@ -978,7 +983,7 @@ RegVal_16 CPU::incPC(){
     return regs_16[PC];
 }
 
-void CPU::PrintStatus(){
+void CPU::printStatus(){
     printf("----REGS----\n");
     printf("ACC:   0x%02x\n", regs_8[A]);
     printf("B:     0x%02x\n", regs_8[B]);
