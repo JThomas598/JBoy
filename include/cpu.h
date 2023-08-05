@@ -175,7 +175,7 @@ class CPU{
 
             @return Flag register state
         */
-       RegVal_8 compareImmediate(RegVal_8 imm);
+       RegVal_8 compareImm(RegVal_8 imm);
         /**
             @brief Increments a GP register.
 
@@ -183,13 +183,13 @@ class CPU{
 
             @return New register value.
         */
-       RegVal_8 incrementReg(RegIndex_8 reg);
+       RegVal_8 incReg(RegIndex_8 reg);
         /**
             @brief Increments the contents of the address in HL.
 
             @return New data value.
         */
-       RegVal_8 incrementIndirect();
+       RegVal_8 incIndirect();
         /**
             @brief Decrements a GP register.
 
@@ -197,13 +197,13 @@ class CPU{
 
             @return New register value.
         */
-       RegVal_8 decrementReg(RegIndex_8 reg);
+       RegVal_8 decReg(RegIndex_8 reg);
         /**
             @brief Decrements the contents of the address in HL.
 
             @return New data value.
         */
-       RegVal_8 decrementIndirect();
+       RegVal_8 decIndirect();
         /**
             @brief Perform bitwise AND on reg A with GP register.
 
@@ -469,9 +469,7 @@ class CPU{
        /**
         * @brief Loads stack pointer with HL.
         * 
-        * @param imm immediate value
-        * 
-        * @return Value in destination register
+        * @return Value in SP
         */
        RegVal_16 loadSPHL();
        /**
@@ -504,6 +502,12 @@ class CPU{
         * @return New PC value
         */
        RegVal_16 jump(RegVal_16 addr);
+       /**
+        * @brief Jump to address in HL.
+        * 
+        * @return New PC value
+        */
+       RegVal_16 jumpHL();
        /**
         * @brief Jump imm addresses away from the current address. (imm is signed)
         * 
@@ -576,6 +580,22 @@ class CPU{
         * @return New PC value.
         */
        RegVal_16 rst(RegVal_8 addr);
+       /**
+        * @brief Perform a left circular shift on reg A
+        */
+       RegVal_8 RLCA();
+       /**
+        * @brief Perform a right circular shift on reg A
+        */
+       RegVal_8 RRCA();
+       /**
+        * @brief Perform a right shift on reg A
+        */
+       RegVal_8 RRA();
+       /**
+        * @brief Perform a left shift on reg A
+        */
+       RegVal_8 RLA();
        /**
         * @brief Halt system clock.
         */

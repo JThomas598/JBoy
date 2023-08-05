@@ -357,7 +357,7 @@ RegVal_8 CPU::compareIndirect(){
     return regs_8[F];
 }
 
-RegVal_8 CPU::compareImmediate(RegVal_8 imm){
+RegVal_8 CPU::compareImm(RegVal_8 imm){
     RegVal_8 prev = regs_8[A];
     RegVal_8 res = regs_8[A] - imm;
     if(fullCarry(prev, imm, SUB, false)) 
@@ -376,7 +376,7 @@ RegVal_8 CPU::compareImmediate(RegVal_8 imm){
     return regs_8[F];
 }
 
-RegVal_8 CPU::incrementReg(RegIndex_8 reg){
+RegVal_8 CPU::incReg(RegIndex_8 reg){
     RegVal_8 prev = regs_8[reg];
     regs_8[reg] += 1;
     if(halfCarry(prev, regs_8[reg]))
@@ -391,7 +391,7 @@ RegVal_8 CPU::incrementReg(RegIndex_8 reg){
     return regs_8[reg];
 }
 
-RegVal_8 CPU::incrementIndirect(){
+RegVal_8 CPU::incIndirect(){
     RegVal_16 addr = getRegPair(H,L);
     RegVal_8 prev = mem[addr];
     mem[addr] += 1;
@@ -407,7 +407,7 @@ RegVal_8 CPU::incrementIndirect(){
     return mem[addr];
 }
 
-RegVal_8 CPU::decrementReg(RegIndex_8 reg){
+RegVal_8 CPU::decReg(RegIndex_8 reg){
     RegVal_8 prev = regs_8[reg];
     regs_8[reg] -= 1;
     if(halfCarry(prev, regs_8[reg]))
@@ -422,7 +422,7 @@ RegVal_8 CPU::decrementReg(RegIndex_8 reg){
     return regs_8[reg];
 }
 
-RegVal_8 CPU::decrementIndirect(){
+RegVal_8 CPU::decIndirect(){
     RegVal_16 addr = getRegPair(H,L);
     RegVal_8 prev = mem[addr];
     mem[addr] -= 1;
@@ -730,6 +730,11 @@ RegVal_16 CPU::jump(RegVal_16 addr){
     return regs_16[PC];
 }
 
+RegVal_16 CPU::jumpHL(){
+    regs_16[PC] = getRegPair(H,L);
+    return regs_16[PC];
+}
+
 RegVal_16 CPU::jumpRel(int8_t imm){
     regs_16[PC] += imm; 
     return regs_16[PC];
@@ -891,6 +896,54 @@ RegVal_16 CPU::reti(){
 RegVal_16 CPU::rst(RegVal_8 addr){
     call(addr);
     return regs_16[PC];
+}
+
+RegVal_8 CPU::RLCA(){
+    regs_8[A] = (regs_8[A] << 1) | (regs_8[A] >> 7);
+    if(regs_8[A] & 0x01)
+        regs_8[F] |= CARRY_FLAG;
+    else
+        regs_8[F] &= ~CARRY_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return regs_8[A]; 
+}
+
+RegVal_8 CPU::RRCA(){
+    regs_8[A] = (regs_8[A] >> 1) | (regs_8[A] << 7);
+    if(regs_8[A] & 0x80)
+        regs_8[F] |= CARRY_FLAG;
+    else
+        regs_8[F] &= ~CARRY_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return regs_8[A]; 
+}
+
+RegVal_8 CPU::RRA(){
+    if(regs_8[A] & 0x01)
+        regs_8[F] |= CARRY_FLAG;
+    else
+        regs_8[F] &= ~CARRY_FLAG;
+    regs_8[A] = regs_8[A] >> 1;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return regs_8[A]; 
+}
+
+RegVal_8 CPU::RLA(){
+    if(regs_8[A] & 0x80)
+        regs_8[F] |= CARRY_FLAG;
+    else
+        regs_8[F] &= ~CARRY_FLAG;
+    regs_8[A] = regs_8[A] << 1;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return regs_8[A]; 
 }
 
 void CPU::halt(){/*do i need a func for this?*/}
