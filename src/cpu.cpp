@@ -6,12 +6,13 @@ char mem[MEM_SIZE];
 bool IME = true;
 
 CPU::CPU(){
-    for(int i = 0; i < NUM_REGS_8; i++){
-        regs_8[i] = 0;
-    }
-    for(int i = 0; i < NUM_REGS_16; i++){
-        regs_16[i] = 0;
-    }
+    regs_8[A] = 0x01;
+    regs_8[B] = 0x00;
+    regs_8[C] = 0x13;
+    regs_8[D] = 0x00;
+    regs_8[E] = 0xD8;
+    regs_8[H] = 0x01;
+    regs_8[L] = 0x4D;
     regs_16[PC] = 0x0100;
     regs_16[SP] = 0xFFFE;
 }
@@ -741,11 +742,12 @@ RegVal_16 CPU::jumpHL(){
 }
 
 RegVal_16 CPU::jumpRel(int8_t imm){
-    regs_16[PC] += imm; 
+    regs_16[PC] += imm + 1; //relative to the NEXT instruction.
     return regs_16[PC];
 }
 
 bool CPU::jumpRelCond(int8_t imm, Condition cond){
+    imm++; //relative to the NEXT instruction.
     switch(cond){
         case ZERO:
             if(regs_8[F] & ZERO_FLAG){
@@ -770,9 +772,6 @@ bool CPU::jumpRelCond(int8_t imm, Condition cond){
                 regs_16[PC] += imm;
                 return true;
             }
-            break;
-        default:
-            return false;
             break;
     }
     return false;
