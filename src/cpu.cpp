@@ -334,7 +334,7 @@ RegVal_8 CPU::compareReg(RegIndex_8 reg){
         regs_8[F] |= HALF_CARRY_FLAG;
     else
         regs_8[F] &= ~HALF_CARRY_FLAG;
-    if(regs_8[A] == 0)
+    if(res == 0)
         regs_8[F] |= ZERO_FLAG;
     else
         regs_8[F] &= ~ZERO_FLAG;
@@ -354,7 +354,7 @@ RegVal_8 CPU::compareIndirect(){
         regs_8[F] |= HALF_CARRY_FLAG;
     else
         regs_8[F] &= ~HALF_CARRY_FLAG;
-    if(regs_8[A] == 0)
+    if(res == 0)
         regs_8[F] |= ZERO_FLAG;
     else
         regs_8[F] &= ~ZERO_FLAG;
@@ -373,7 +373,7 @@ RegVal_8 CPU::compareImm(RegVal_8 imm){
         regs_8[F] |= HALF_CARRY_FLAG;
     else
         regs_8[F] &= ~HALF_CARRY_FLAG;
-    if(regs_8[A] == 0)
+    if(res == 0)
         regs_8[F] |= ZERO_FLAG;
     else
         regs_8[F] &= ~ZERO_FLAG;
