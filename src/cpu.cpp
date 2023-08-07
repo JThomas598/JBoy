@@ -73,11 +73,16 @@ void CPU::pushPC(){
 }
 
 void CPU::popPC(){
+    RegVal_8 msb = 0x00;
+    RegVal_8 lsb = 0x00;
+    regs_16[PC] = 0x0000;
     regs_16[SP]++;
-    regs_16[PC] |= mem[regs_16[SP]];
+    lsb = mem[regs_16[SP]];
+    regs_16[SP]++;
+    msb = mem[regs_16[SP]];
+    regs_16[PC] |= msb;
     regs_16[PC] = regs_16[PC] << 8;
-    regs_16[SP]++;
-    regs_16[PC] |= mem[regs_16[SP]];
+    regs_16[PC] |= lsb;
 }
 
 RegVal_8 CPU::addReg(RegIndex_8 reg){
@@ -851,6 +856,7 @@ bool CPU::callCond(RegVal_16 addr, Condition cond){
 
 RegVal_16 CPU::ret(){
     popPC();
+    incPC();
     return regs_16[PC];
 }
 
@@ -858,25 +864,25 @@ bool CPU::retCond(Condition cond){
     switch(cond){
         case ZERO:
             if(regs_8[F] & ZERO_FLAG){
-                popPC();
+                ret();
                 return true;
             }
             break;
         case NOT_ZERO:
             if(!(regs_8[F] & ZERO_FLAG)){
-                popPC();
+                ret();
                 return true;
             }
             break;
         case CARRY:
             if(regs_8[F] & CARRY_FLAG){
-                popPC();
+                ret();
                 return true;
             }
             break;
         case NO_CARRY:
             if(!(regs_8[F] & CARRY_FLAG)){
-                popPC();
+                ret();
                 return true;
             }
             break;
@@ -884,7 +890,7 @@ bool CPU::retCond(Condition cond){
             return false;
             break; 
     }
-    return regs_16[PC];
+    return false;;
 }
 
 RegVal_16 CPU::reti(){
