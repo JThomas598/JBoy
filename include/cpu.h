@@ -25,8 +25,6 @@ typedef enum Condition{
     NOT_ZERO,
     CARRY,
     NO_CARRY,
-    HALF_CARRY,
-    SUBTRACT,
 }Condition;
 
 typedef enum Operation{
@@ -673,9 +671,11 @@ class CPU{
        /**
         * @brief Add SP to HL.
         * 
+        * @param imm signed immediate to be added to sp
+        * 
         * @return New HL value.
         */
-       RegVal_16 addHLSP();
+       RegVal_16 addHLSP(int8_t imm);
        /**
         * @brief Add signed immediate to stack pointer.
         * 

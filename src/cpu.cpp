@@ -1016,19 +1016,47 @@ RegVal_16 CPU::decSP(){
 }
 
 RegVal_16 CPU::addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr){
+    RegVal_8 prevH = regs_8[H];
+    RegVal_8 prevL = regs_8[L];
     RegVal_16 val = getRegPair(H,L) + getRegPair(msr,lsr);
+    if(val < getRegPair(H,L))
+        regs_8[F] |= CARRY_FLAG;
+    else
+        regs_8[F] &= ~CARRY_FLAG;
     setRegPair(H,L,val);
+    if(halfCarry(prevH, regs_8[H]))
+        regs_8[F] |= HALF_CARRY_FLAG;
+    else
+        regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
     return val;
 }
 
-RegVal_16 CPU::addHLSP(){
+RegVal_16 CPU::addHLSP(int8_t imm){
+    RegVal_8 prevH = regs_8[H];
+    RegVal_8 prevL = regs_8[L];
     RegVal_16 val = getRegPair(H,L) + regs_16[SP];
+    if(val < getRegPair(H,L))
+        regs_8[F] |= CARRY_FLAG;
+    else
+        regs_8[F] &= ~CARRY_FLAG;
     setRegPair(H,L,val);
+    if(halfCarry(prevH, regs_8[H]))
+        regs_8[F] |= HALF_CARRY_FLAG;
+    else
+        regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
     return val;
 }
 
 RegVal_16 CPU::addSPImm(int8_t imm){
+    RegVal_8 prevLsb = regs_16[SP] & 0x00FF;
     regs_16[SP] += imm;
+    RegVal_8 currLsb = regs_16[SP] & 0x00FF;
+    if(halfCarry(prevLsb, currLsb))
+        regs_8[F] |= HALF_CARRY_FLAG;
+    else
+        regs_8[F] &= ~HALF_CARRY_FLAG;
     return regs_16[SP];
 }
 
