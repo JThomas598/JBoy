@@ -10,7 +10,8 @@ typedef enum InstrState{
     FETCH_2,
     EXECUTE_1,
     EXECUTE_2,
-    EXECUTE_3
+    EXECUTE_3,
+    EXECUTE_4
 }InstrState;
 
 class Gameboy{
