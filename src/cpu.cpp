@@ -2,7 +2,6 @@
 #include "gameboy.h"
 #include <stdbool.h>
 
-char mem[MEM_SIZE];
 bool IME = true;
 
 CPU::CPU(){
@@ -600,7 +599,7 @@ RegVal_8 CPU::loadRegIndirect(RegIndex_8 reg){
 RegVal_8 CPU::loadIndirectReg(RegIndex_8 reg){
     RegVal_16 addr = getRegPair(H,L);
     mem[addr] = regs_8[reg];
-    return regs_8[A];
+    return mem[addr];
 }
 
 RegVal_8 CPU::loadIndirectImm(RegVal_8 imm){
@@ -903,52 +902,132 @@ RegVal_16 CPU::rst(RegVal_8 addr){
     return regs_16[PC];
 }
 
-RegVal_8 CPU::RLCA(){
-    regs_8[A] = (regs_8[A] << 1) | (regs_8[A] >> 7);
-    if(regs_8[A] & 0x01)
+RegVal_8 CPU::rlc(RegIndex_8 reg){
+    regs_8[reg] = (regs_8[reg] << 1) | (regs_8[reg] >> 7);
+    if(regs_8[reg] & 0x01)
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
     regs_8[F] &= ~ZERO_FLAG;
-    return regs_8[A]; 
+    return regs_8[reg]; 
 }
 
-RegVal_8 CPU::RRCA(){
-    regs_8[A] = (regs_8[A] >> 1) | (regs_8[A] << 7);
-    if(regs_8[A] & 0x80)
+RegVal_8 CPU::rlcInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    mem[addr] = (mem[addr] << 1) | (mem[addr] >> 7);
+    if(mem[addr] & 0x01)
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
     regs_8[F] &= ~ZERO_FLAG;
-    return regs_8[A]; 
+    return mem[addr]; 
 }
 
-RegVal_8 CPU::RRA(){
-    if(regs_8[A] & 0x01)
+RegVal_8 CPU::rrc(RegIndex_8 reg){
+    regs_8[reg] = (regs_8[reg] >> 1) | (regs_8[reg] << 7);
+    if(regs_8[reg] & 0x80)
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
-    regs_8[A] = regs_8[A] >> 1;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
     regs_8[F] &= ~ZERO_FLAG;
-    return regs_8[A]; 
+    return regs_8[reg]; 
 }
 
-RegVal_8 CPU::RLA(){
-    if(regs_8[A] & 0x80)
+RegVal_8 CPU::rrcInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    mem[addr] = (mem[addr] >> 1) | (mem[addr] << 7);
+    if(mem[addr] & 0x80)
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
-    regs_8[A] = regs_8[A] << 1;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
     regs_8[F] &= ~ZERO_FLAG;
-    return regs_8[A]; 
+    return mem[addr]; 
+}
+
+RegVal_8 CPU::rr(RegIndex_8 reg){
+    if(regs_8[F] & CARRY_FLAG){
+        if(!(regs_8[reg] & 0x01)){
+            regs_8[F] &= ~CARRY_FLAG;
+        }
+        regs_8[reg] = regs_8[reg] >> 1 | 0x80;
+    }
+    else{
+        if(regs_8[reg] & 0x01){
+            regs_8[F] |= CARRY_FLAG;
+        }
+        regs_8[reg] = regs_8[reg] >> 1;
+    }
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return regs_8[reg]; 
+}
+
+RegVal_8 CPU::rrInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    if(regs_8[F] & CARRY_FLAG){
+        if(!(mem[addr] & 0x01)){
+            regs_8[F] &= ~CARRY_FLAG;
+        }
+        mem[addr] = mem[addr] >> 1 | 0x80;
+    }
+    else{
+        if(mem[addr] & 0x01){
+            regs_8[F] |= CARRY_FLAG;
+        }
+        mem[addr] = mem[addr] >> 1;
+    }
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return mem[addr]; 
+}
+
+RegVal_8 CPU::rl(RegIndex_8 reg){
+    if(regs_8[F] & CARRY_FLAG){
+        if(!(regs_8[reg] & 0x80)){
+            regs_8[F] &= ~CARRY_FLAG;
+        }
+        regs_8[reg] = regs_8[reg] << 1 | 0x01;
+    }
+    else{
+        if(regs_8[reg] & 0x80){
+            regs_8[F] |= CARRY_FLAG;
+        }
+        regs_8[reg] = regs_8[reg] << 1;
+    }
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return regs_8[reg]; 
+}
+
+RegVal_8 CPU::rlInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    if(regs_8[F] & CARRY_FLAG){
+        if(!(mem[addr] & 0x80)){
+            regs_8[F] &= ~CARRY_FLAG;
+        }
+        mem[addr] = mem[addr] << 1 | 0x01;
+    }
+    else{
+        if(mem[addr] & 0x80){
+            regs_8[F] |= CARRY_FLAG;
+        }
+        mem[addr] = mem[addr] << 1;
+    }
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~ZERO_FLAG;
+    return mem[addr]; 
 }
 
 void CPU::halt(){/*do i need a func for this?*/}
@@ -1017,7 +1096,6 @@ RegVal_16 CPU::decSP(){
 
 RegVal_16 CPU::addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr){
     RegVal_8 prevH = regs_8[H];
-    RegVal_8 prevL = regs_8[L];
     RegVal_16 val = getRegPair(H,L) + getRegPair(msr,lsr);
     if(val < getRegPair(H,L))
         regs_8[F] |= CARRY_FLAG;
@@ -1032,9 +1110,8 @@ RegVal_16 CPU::addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr){
     return val;
 }
 
-RegVal_16 CPU::addHLSP(int8_t imm){
+RegVal_16 CPU::addHLSP(){
     RegVal_8 prevH = regs_8[H];
-    RegVal_8 prevL = regs_8[L];
     RegVal_16 val = getRegPair(H,L) + regs_16[SP];
     if(val < getRegPair(H,L))
         regs_8[F] |= CARRY_FLAG;
@@ -1046,6 +1123,12 @@ RegVal_16 CPU::addHLSP(int8_t imm){
     else
         regs_8[F] &= ~HALF_CARRY_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
+    return val;
+}
+
+RegVal_16 CPU::loadHLSPOffset(int8_t imm){
+    RegVal_16 val = regs_16[SP] + imm;
+    setRegPair(H,L,val);
     return val;
 }
 
