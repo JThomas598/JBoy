@@ -7,14 +7,14 @@ $(TARGET): $(OBJ_FILES)
 	g++ $^ -o $@
 
 test/%.gb: test/%.o
-	./test/rgblink -o $@ $^
-	./test/rgbfix -v -p 0xFF $@
+	rgblink -o $@ $^
+	rgbfix -v -p 0xFF $@
 
 build/%.o: src/%.cpp
 	g++ $(FLAGS) -I include -c $< -o $@
 
 test/%.o: test/%.asm
-	./test/rgbasm -L -o $@ $^
+	rgbasm -L -o $@ $^
 
 clean:
 	rm -rf build/*.o test/*.gb test/*.o $(TARGET)
