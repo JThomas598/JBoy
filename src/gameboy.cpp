@@ -8,6 +8,8 @@
 
 using namespace std;
 
+RegVal_8 mem[MEM_SIZE];
+
 Gameboy::Gameboy(){
     state = FETCH_OP;
 }
@@ -29,7 +31,7 @@ size_t Gameboy::LoadGame(std::string filename){
     }
     size_t bytes_read = 0;
     while(!game.eof()){
-        game.read(mem + bytes_read, BUFSIZ);
+        game.read((char*)mem + bytes_read, BUFSIZ);
         bytes_read += game.gcount();
     }
     printf("[INFO] ROM read successfully. Size: %ld bytes\n", bytes_read);
@@ -37,10 +39,6 @@ size_t Gameboy::LoadGame(std::string filename){
 }
 
 void Gameboy::EmulateCycle(){
-    static RegVal_8 imm_8 = 0x00;
-    static RegVal_16 imm_16 = 0x0000;
-    static RegVal_8 msb = 0x00;
-    static RegVal_8 lsb = 0x00;
     if(state == FETCH_OP){
         if(IME){
             //handle interrupts
@@ -3256,11 +3254,14 @@ void Gameboy::EmulateCycle(){
         case CB_OP:
             switch(state){
                 case FETCH_OP:
+                    #ifdef debug
+                        printf("[DEBUG] CB Prefix Detected. Fetching Opcode...\n");
+                    #endif
                     state = EXECUTE_1; 
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    uint8_t cb_op = mem[cpu.getPC()];
+                    cb_op = mem[cpu.getPC()];
                     switch(cb_op){
                         case RRC_A:
                             #ifdef debug
@@ -3454,6 +3455,7 @@ void Gameboy::EmulateCycle(){
                             #endif
                             cpu.rlInd();
                             break;
+                        /*
                         case SLA_A:
                             #ifdef debug
                                 printf("[DEBUG] instrunction resolved to: SLA A\n");
@@ -4798,9 +4800,15 @@ void Gameboy::EmulateCycle(){
                             #endif
                             cpu.setInd(BIT_SEVEN);
                             break;
+                        default:
+                            break;
+                    */
                     }
                     state = FETCH_OP;
                     cpu.incPC();
+                    break;
+                default:
+                    break;
             }
             break;
         default:

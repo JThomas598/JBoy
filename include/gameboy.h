@@ -2,7 +2,7 @@
 
 constexpr uint16_t MEM_SIZE = (uint16_t)65535;
 
-extern char mem[MEM_SIZE];
+extern RegVal_8 mem[MEM_SIZE];
 
 typedef enum InstrState{
     FETCH_OP,
@@ -18,7 +18,12 @@ class Gameboy{
     private:
         CPU cpu;
         uint8_t opcode;
+        uint8_t cb_op;
         InstrState state;
+        RegVal_8 imm_8;
+        RegVal_16 imm_16;
+        RegVal_8 msb;
+        RegVal_8 lsb;
         //ppu comes later
         void printDebug(char* s);
     public:
