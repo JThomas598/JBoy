@@ -1,7 +1,7 @@
 #ifndef CPU_H
 #define CPU_H
 
-#include "instructions.h"
+#include "memory.h"
 #include <stdlib.h>
 #include <iostream>
 #include <stdint.h>
@@ -9,9 +9,6 @@
 #include <stdbool.h>
 
 extern bool IME;
-
-constexpr uint8_t NUM_REGS_8 = 8;
-constexpr uint8_t NUM_REGS_16 = 4;
 
 //FLAG MASKS
 constexpr uint8_t ZERO_FLAG = 0b10000000;
@@ -27,13 +24,22 @@ typedef enum Condition{
     NO_CARRY,
 }Condition;
 
+typedef enum BitIndex{
+    BIT_ZERO,
+    BIT_ONE,
+    BIT_TWO,
+    BIT_THREE,
+    BIT_FOUR,
+    BIT_FIVE,
+    BIT_SIX,
+    BIT_SEVEN
+}BitIndex;
+
 typedef enum Operation{
     ADD,
     SUB,
 }Operation;
 
-typedef uint8_t RegVal_8;
-typedef uint16_t RegVal_16;
 
 typedef enum RegIndex_8{
     A,B,C,D,E,F,H,L
@@ -45,8 +51,9 @@ typedef enum RegIndex_16{
 
 class CPU{
     private:
-        RegVal_8 regs_8[NUM_REGS_8];
-        RegVal_16 regs_16[NUM_REGS_16];
+        RegVal_8 regs_8[8];
+        RegVal_16 regs_16[4];
+        Memory& mem;
 
         bool fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry);
         bool halfCarry(RegVal_8 prev, RegVal_8 curr);
@@ -58,8 +65,10 @@ class CPU{
     public:
         /**
             @brief Constructor
+
+            @param mem reference to memory handler
         */
-        CPU();
+        CPU(Memory& mem);
         /**
             @brief  Adds a GP register's value to reg A.
 
@@ -211,7 +220,7 @@ class CPU{
         */
        RegVal_8 andReg(RegIndex_8 reg);
         /**
-            @brief Perform bitwise AND on reg A with contents of address in HL register pair.
+            @brief Perform bitwise AND on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
@@ -233,7 +242,7 @@ class CPU{
         */
        RegVal_8 orReg(RegIndex_8 reg);
         /**
-            @brief Perform bitwise OR on reg A with contents of address in HL register pair.
+            @brief Perform bitwise OR on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
@@ -255,7 +264,7 @@ class CPU{
         */
        RegVal_8 xorReg(RegIndex_8 reg);
         /**
-            @brief Perform bitwise XOR on reg A with contents of address in HL register pair.
+            @brief Perform bitwise XOR on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
@@ -269,7 +278,7 @@ class CPU{
         */
        RegVal_8 xorImm(RegVal_8 imm);
         /**
-            @brief Perform bitwise XOR on reg A with contents of address in HL register pair.
+            @brief Perform bitwise XOR on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
@@ -373,7 +382,7 @@ class CPU{
         * 
         * @return Value in register A
         */
-       RegVal_8 loadAImmIndirect(RegVal_16 addr);
+       RegVal_8 loadAImmDirect(RegVal_16 addr);
        /**
         * @brief Loads register A to the address specified by a 16 bit immediate.
         * 
@@ -381,7 +390,7 @@ class CPU{
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadImmAIndirect(RegVal_16 imm);
+       RegVal_8 loadImmADirect(RegVal_16 imm);
        /**
         * @brief Loads the contents of the address 0xFF00 + C into A.
         * 
@@ -579,21 +588,171 @@ class CPU{
         */
        RegVal_16 rst(RegVal_8 addr);
        /**
-        * @brief Perform a left circular shift on reg A
+        * @brief Perform a left circular rotation on a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
         */
-       RegVal_8 RLCA();
+       RegVal_8 rlc(RegIndex_8 reg);
        /**
-        * @brief Perform a right circular shift on reg A
+        * @brief Perform a left circular rotation on memory location in HL
+        * 
+        * @return new value at location
         */
-       RegVal_8 RRCA();
+       RegVal_8 rlcInd();
        /**
-        * @brief Perform a right shift on reg A
+        * @brief Perform a right circular rotation on a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @return new value at location
         */
-       RegVal_8 RRA();
+       RegVal_8 rrc(RegIndex_8 reg);
        /**
-        * @brief Perform a left shift on reg A
+        * @brief Perform a right circular rotation on memory location in HL
+        * 
+        * @return new value at location
         */
-       RegVal_8 RLA();
+       RegVal_8 rrcInd();
+       /**
+        * @brief Perform a right rotation through the carry flag on a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
+        */
+       RegVal_8 rr(RegIndex_8 reg);
+       /**
+        * @brief Perform a right rotation through the carry flag on memory location in HL
+        * 
+        * @return new value at location
+        */
+       RegVal_8 rrInd();
+       /**
+        * @brief Perform a left rotation through the carry flag on a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
+        */
+       RegVal_8 rl(RegIndex_8 reg);
+       /**
+        * @brief Perform a left rotation through the carry flag on memory location in HL
+        * 
+        * @return new value at location
+        */
+       RegVal_8 rlInd();
+       /**
+        * @brief Perform a left arithmetic shift on GP reg 
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
+        */
+       RegVal_8 sla(RegIndex_8 reg);
+       /**
+        * @brief Perform a left arithmetic shift on memory location in HL
+        * 
+        * @return new value at location
+        */
+       RegVal_8 slaInd();
+       /**
+        * @brief Perform a right arithmetic shift on GP reg 
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
+        */
+       RegVal_8 sra(RegIndex_8 reg);
+       /**
+        * @brief Perform a right arithmetic shift on memory location in HL
+        * 
+        * @return new value at location
+        */
+       RegVal_8 sraInd();
+       /**
+        * @brief perform a right logical shift on a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
+        */
+       RegVal_8 srl(RegIndex_8 reg);
+       /**
+        * @brief perform a right logical shift on memory location in HL
+        * 
+        * @return new value at location
+        */
+       RegVal_8 srlInd();
+       /**
+        * @brief swap the upper and lower nibbles of a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @return new register value
+        */
+       RegVal_8 swap(RegIndex_8 reg);
+       /**
+        * @brief swap the upper and lower nibbles of memory location in HL
+        * 
+        * @return new value at location
+        */
+       RegVal_8 swapInd();
+       /**
+        * @brief test a bit in a GP reg and set zero flag if its cleared
+        * 
+        * @param reg register of interest
+        * 
+        * @param index bit to be tested
+        * 
+        * @return new register value
+        */
+       RegVal_8 bit(RegIndex_8 reg, BitIndex index);
+       /**
+        * @brief test a bit at memory location in HL and set zero flag if it's cleared
+        * 
+        * @param index bit to be tested
+        * 
+        * @return new value at location
+        */
+       RegVal_8 bitInd(BitIndex index);
+       /**
+        * @brief clear a bit in a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @param index bit to be cleared
+        * 
+        * @return new register value
+        */
+       RegVal_8 res(RegIndex_8 reg, BitIndex index);
+       /**
+        * @brief clear a bit at memory location in HL
+        * 
+        * @param index bit to be cleared
+        * 
+        * @return new value at location
+        */
+       RegVal_8 resInd(BitIndex index);
+       /**
+        * @brief set a bit in a GP reg
+        * 
+        * @param reg register of interest
+        * 
+        * @param index bit to be set
+        * 
+        * @return new register value
+        */
+       RegVal_8 set(RegIndex_8 reg, BitIndex index);
+       /**
+        * @brief set a bit in a memory location 
+        * 
+        * @param index bit to be set
+        * 
+        * @return new value at location 
+        */
+       RegVal_8 setInd(BitIndex index);
        /**
         * @brief Halt system clock.
         */
@@ -669,13 +828,17 @@ class CPU{
         */
        RegVal_16 addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr);
        /**
-        * @brief Add SP to HL.
-        * 
-        * @param imm signed immediate to be added to sp
+        * @brief Add SP to HL
         * 
         * @return New HL value.
         */
-       RegVal_16 addHLSP(int8_t imm);
+       RegVal_16 addHLSP();
+       /**
+        * @brief load SP plus an offset to HL
+        * 
+        * @return New HL value.
+        */
+       RegVal_16 loadHLSPOffset(int8_t imm);
        /**
         * @brief Add signed immediate to stack pointer.
         * 
@@ -689,11 +852,29 @@ class CPU{
         */
        RegVal_16 incPC();
        /**
-        * @brief Get Program Counter Value
+        * @brief Get program counter value
         * 
         * @return New PC value.
         */
        RegVal_16 getPC();
+
+       /**
+        * @brief Get 8-bit register value
+        * 
+        * @param reg register of interest
+        * 
+        * @return Register value
+        */
+       RegVal_8 getReg(RegIndex_8 reg);
+
+       /**
+        * @brief Get 16-bit register value
+        * 
+        * @param reg register of interest
+        * 
+        * @return Register value
+        */
+       RegVal_16 getReg(RegIndex_16 reg);
 
        void printStatus();
 
