@@ -44,8 +44,6 @@ class PPU{
         RegVal_8 mapY;
         RegVal_8 viewportTileX;
         RegVal_8 viewportTileY;
-        RegVal_8 scx;
-        RegVal_8 scy;
         std::chrono::high_resolution_clock::time_point lastFrameTime;
         RegVal_8 trashPixelCount;
         RegVal_8 tileRowCount;

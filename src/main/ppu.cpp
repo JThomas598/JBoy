@@ -41,8 +41,6 @@ PPU::PPU(Memory& memr) : mem(memr){
     vCount = 0;
     mapX = 0;
     mapY = 0;
-    scx = 0;
-    scy = 0;
     tileRowCount = 0;
     trashPixelCount = 0;
     viewportTileX = 0;
@@ -174,8 +172,7 @@ void PPU::runFSM(){
                     updateDisplay();
                     break;
                 }
-                //scx = mem.read(SCX);
-                mapX = scx / 8;
+                mapX = mem.read(SCX) / 8;
                 viewportTileX = 0;
                 trashPixelCount = scx % 8;
                 mem.write(STAT, 0x03);
@@ -192,10 +189,8 @@ void PPU::runFSM(){
                     vCount = 0;
                     mem.write(STAT, 0x03);
                     state = PIX_TRANS;
-                    scx = mem.read(SCX);
-                    scy = mem.read(SCY);
-                    mapX = scx / 8;
-                    mapY = scy / 8;
+                    mapX = mem.read(SCX) / 8;
+                    mapY = mem.read(SCY) / 8;
                     std::queue<Uint32> empty;
                     std::swap(fifo, empty);
                     viewportTileX = 0;
