@@ -1,8 +1,7 @@
 #include "cpu.h"
 #include "memory.h"
 #include <stdbool.h>
-
-bool IME = true;
+#include <stdexcept>
 
 CPU::CPU(Memory& mem) : mem(mem){
     regs_8[A] = 0x01;
@@ -13,7 +12,7 @@ CPU::CPU(Memory& mem) : mem(mem){
     regs_8[H] = 0x01;
     regs_8[L] = 0x4D;
     regs_8[F] = 0x80;
-    regs_16[PC] = 0x0100;
+    regs_16[PC] = 0x0000;
     regs_16[SP] = 0xFFFE;
 }
 
@@ -707,6 +706,9 @@ RegVal_16 CPU::push(RegIndex_8 msr, RegIndex_8 lsr){
 }
 
 RegVal_16 CPU::pop(RegIndex_8 msr, RegIndex_8 lsr){
+    if(regs_16[SP] == (RegVal_16)0xFFFE){
+        throw std::runtime_error("CPU::Pop(): Attempt to pop off empty stack.");
+    }
     regs_8[lsr] = mem.read(++regs_16[SP]);
     regs_8[msr] = mem.read(++regs_16[SP]);
     return regs_16[SP];
@@ -875,7 +877,7 @@ bool CPU::retCond(Condition cond){
 
 RegVal_16 CPU::reti(){
     ret();
-    IME = 1;
+    //turn interrupts on
     return regs_16[PC];
 }
 
@@ -890,9 +892,12 @@ RegVal_8 CPU::rlc(RegIndex_8 reg){
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
     return regs_8[reg]; 
 }
 
@@ -900,15 +905,17 @@ RegVal_8 CPU::rlcInd(){
     RegVal_16 addr = getRegPair(H,L);
     RegVal_8 val = mem.read(addr);
     val = val << 1 | val >> 7;
-    mem.write(addr, val);
     if(val & 0x01)
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
-    return mem.read(addr); 
+    return mem.write(addr, val);
 }
 
 RegVal_8 CPU::rrc(RegIndex_8 reg){
@@ -917,9 +924,12 @@ RegVal_8 CPU::rrc(RegIndex_8 reg){
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
     return regs_8[reg]; 
 }
 
@@ -927,15 +937,17 @@ RegVal_8 CPU::rrcInd(){
     RegVal_16 addr = getRegPair(H,L);
     RegVal_8 val = mem.read(addr);
     val = val >> 1 | val << 7;
-    mem.write(addr, val);
     if(val & 0x80)
         regs_8[F] |= CARRY_FLAG;
     else
         regs_8[F] &= ~CARRY_FLAG;
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
-    return mem.read(addr); 
+    return mem.write(addr, val);
 }
 
 RegVal_8 CPU::rr(RegIndex_8 reg){
@@ -951,9 +963,12 @@ RegVal_8 CPU::rr(RegIndex_8 reg){
         }
         regs_8[reg] = regs_8[reg] >> 1;
     }
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
     return regs_8[reg]; 
 }
 
@@ -972,11 +987,13 @@ RegVal_8 CPU::rrInd(){
         }
         val = val >> 1;
     }
-    mem.write(addr, val);
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
-    return mem.read(addr); 
+    return mem.write(addr, val);
 }
 
 RegVal_8 CPU::rl(RegIndex_8 reg){
@@ -992,9 +1009,12 @@ RegVal_8 CPU::rl(RegIndex_8 reg){
         }
         regs_8[reg] = regs_8[reg] << 1;
     }
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
     return regs_8[reg]; 
 }
 
@@ -1013,11 +1033,211 @@ RegVal_8 CPU::rlInd(){
         }
         val = val << 1;
     }
-    mem.write(addr, val);
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
     regs_8[F] &= ~SUBTRACT_FLAG;
     regs_8[F] &= ~HALF_CARRY_FLAG;
-    regs_8[F] &= ~ZERO_FLAG;
-    return mem.read(addr); 
+    return mem.write(addr, val);
+}
+
+RegVal_8 CPU::sla(RegIndex_8 reg){
+    if(regs_8[reg] & 0x80){
+        regs_8[F] |= CARRY_FLAG;
+    }
+    else{
+        regs_8[F] &= ~CARRY_FLAG;
+    }
+    regs_8[reg] <<= 1;
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return regs_8[reg]; 
+}
+
+RegVal_8 CPU::slaInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    if(val & 0x80){
+        regs_8[F] |= CARRY_FLAG;
+    }
+    else{
+        regs_8[F] &= ~CARRY_FLAG;
+    }
+    val <<= 1;
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return mem.write(addr, val); 
+}
+
+RegVal_8 CPU::sra(RegIndex_8 reg){
+    if(regs_8[reg] & 0x01){
+        regs_8[F] |= CARRY_FLAG;
+    }
+    else{
+        regs_8[F] &= ~CARRY_FLAG;
+    }
+    //check MSB to shift properly
+    if(regs_8[reg] & 0x80){
+        regs_8[reg] >>= 1;
+        regs_8[reg] |= 0x80;
+    }
+    else{
+        regs_8[reg] >>= 1;
+    }
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return regs_8[reg]; 
+}
+
+RegVal_8 CPU::sraInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    if(val & 0x01){
+        regs_8[F] |= CARRY_FLAG;
+    }
+    else{
+        regs_8[F] &= ~CARRY_FLAG;
+    }
+    //check MSB to shift properly
+    if(val & 0x80){
+        val >>= 1;
+        val |= 0x80;
+    }
+    else{
+        val >>= 1;
+    }
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return mem.write(val, addr); 
+}
+
+RegVal_8 CPU::srl(RegIndex_8 reg){
+    if(regs_8[reg] & 0x01){
+        regs_8[F] |= CARRY_FLAG;
+    }
+    else{
+        regs_8[F] &= ~CARRY_FLAG;
+    }
+    regs_8[reg] >>= 1;
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return regs_8[reg]; 
+}
+
+RegVal_8 CPU::srlInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    if(val & 0x01){
+        regs_8[F] |= CARRY_FLAG;
+    }
+    else{
+        regs_8[F] &= ~CARRY_FLAG;
+    }
+    val >>= 1;
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return mem.write(addr, val); 
+}
+
+RegVal_8 CPU::swap(RegIndex_8 reg){
+    regs_8[reg] = regs_8[reg] >> 4 | regs_8[reg] << 4;
+    if(regs_8[reg] == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~CARRY_FLAG;
+    return regs_8[reg];
+}
+
+RegVal_8 CPU::swapInd(){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    val = val >> 4 | val << 4;
+    if(val == 0)
+        regs_8[F] |= ZERO_FLAG;
+    else
+        regs_8[F] &= ~ZERO_FLAG;
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    regs_8[F] &= ~CARRY_FLAG;
+    return mem.write(addr, val);
+}
+
+RegVal_8 CPU::bit(RegIndex_8 reg, BitIndex index){
+    if(regs_8[reg] & index){
+        regs_8[F] &= ~ZERO_FLAG;
+    }
+    else{
+        regs_8[F] |= ZERO_FLAG;
+    }
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] |= HALF_CARRY_FLAG;
+    return regs_8[reg];
+}
+
+RegVal_8 CPU::bitInd(BitIndex index){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    if(val & index){
+        regs_8[F] &= ~ZERO_FLAG;
+    }
+    else{
+        regs_8[F] |= ZERO_FLAG;
+    }
+    regs_8[F] &= ~SUBTRACT_FLAG;
+    regs_8[F] |= HALF_CARRY_FLAG;
+    return val;
+}
+
+RegVal_8 CPU::res(RegIndex_8 reg, BitIndex index){
+    regs_8[reg] &= ~index; //clear bit
+    return regs_8[reg];
+}
+
+RegVal_8 CPU::resInd(BitIndex index){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    val &= ~index; //clear bit
+    return mem.write(addr, val); 
+}
+
+RegVal_8 CPU::set(RegIndex_8 reg, BitIndex index){
+    regs_8[reg] |= index; //clear bit
+    return regs_8[reg];
+}
+
+RegVal_8 CPU::setInd(BitIndex index){
+    RegVal_16 addr = getRegPair(H,L);
+    RegVal_8 val = mem.read(addr);
+    val |= index; //clear bit
+    return mem.write(addr, val);
 }
 
 void CPU::halt(){/*do i need a func for this?*/}
@@ -1025,11 +1245,9 @@ void CPU::halt(){/*do i need a func for this?*/}
 void CPU::stop(){/*or this?*/}
 
 void CPU::di(){
-    IME = 0;
 }
 
 void CPU::ei(){
-    IME = 1;
 }
 
 RegVal_16 CPU::incBC(){

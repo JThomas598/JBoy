@@ -8,8 +8,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-extern bool IME;
-
 //FLAG MASKS
 constexpr uint8_t ZERO_FLAG = 0b10000000;
 constexpr uint8_t SUBTRACT_FLAG = 0b01000000;
@@ -25,14 +23,14 @@ typedef enum Condition{
 }Condition;
 
 typedef enum BitIndex{
-    BIT_ZERO,
-    BIT_ONE,
-    BIT_TWO,
-    BIT_THREE,
-    BIT_FOUR,
-    BIT_FIVE,
-    BIT_SIX,
-    BIT_SEVEN
+    BIT_ZERO = 0x01,
+    BIT_ONE = 0x02,
+    BIT_TWO = 0x04,
+    BIT_THREE = 0x08,
+    BIT_FOUR = 0x10,
+    BIT_FIVE = 0x20,
+    BIT_SIX = 0x40,
+    BIT_SEVEN = 0x80
 }BitIndex;
 
 typedef enum Operation{
