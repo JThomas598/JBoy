@@ -23,9 +23,13 @@ TODO:
 2. Implement LCD control.
 3. Chop code up into subroutines.
 4. Use Renderer for hardware acceleration.
+5. Make a proper destructor for the SDL stuff.
+6. Use initializer properly for constructor.
+7. Implement switchable pallete (probably with lookup table)
 */
 
-PPU::PPU(Memory& memr) : mem(memr){
+PPU::PPU(Memory& memr): mem(memr)
+{
     SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_HAPTIC | SDL_INIT_HAPTIC | SDL_INIT_EVENTS | SDL_INIT_NOPARACHUTE);
     window = SDL_CreateWindow("JK EMU", 
         SDL_WINDOWPOS_CENTERED,
@@ -83,8 +87,22 @@ Uint32 PPU::resolveColor(RegVal_8 val){
 }
 
 void PPU::fetchTileRow(){
-    uint8_t index = mem.read(TILE_MAP_0 + (mapY*TILE_MAP_ROW_SIZE) + mapX);
-    RegVal_16 tileRowAddr = TILE_BLK_0 + (index * TILE_SIZE) + (tileRowCount * 2);
+    RegVal_16 tileDataStart;
+    RegVal_16 tileMapStart;
+    if(mem.read(LCDC) & BG_MAP_SEL){
+        tileMapStart = 0x9C00; 
+    }
+    else{
+        tileMapStart = 0x9800;
+    }
+    if(mem.read(LCDC) & BG_WIN_TILE_BLK_SEL){
+        tileDataStart = 0x8000; 
+    }
+    else{
+        tileDataStart = 0x9000;
+    }
+    uint8_t index = mem.read(tileMapStart + (mapY*TILE_MAP_ROW_SIZE) + mapX);
+    RegVal_16 tileRowAddr = tileDataStart + (index * TILE_SIZE) + (tileRowCount * 2);
     const RegVal_8 lsbTileRow = mem.read(tileRowAddr);
     const RegVal_8 msbTileRow = mem.read(tileRowAddr + 1);
     RegVal_8 bit0;
@@ -135,6 +153,7 @@ void PPU::drawPixel(){
 }
 
 void PPU::clearHangingPixels(){
+    RegVal_8 scx = mem.read(SCX);
     if((scx % 8) != 0){
         for(int i = 0; i < (8 - (scx % 8)); i++){
             fifo.pop(); 
@@ -168,13 +187,13 @@ void PPU::runFSM(){
                 if(vCount == HEIGHT){
                     mem.write(STAT, 0x01);
                     state = V_BLANK;
-                    //SDL_UpdateWindowSurface(window);
-                    updateDisplay();
+                    SDL_UpdateWindowSurface(window);
+                    //updateDisplay();
                     break;
                 }
                 mapX = mem.read(SCX) / 8;
                 viewportTileX = 0;
-                trashPixelCount = scx % 8;
+                trashPixelCount = mem.read(SCX) % 8;
                 mem.write(STAT, 0x03);
                 state = PIX_TRANS;
                 break;
@@ -195,8 +214,8 @@ void PPU::runFSM(){
                     std::swap(fifo, empty);
                     viewportTileX = 0;
                     viewportTileY = 0;
-                    trashPixelCount = scx % 8;
-                    tileRowCount = scy % 8;
+                    trashPixelCount = mem.read(SCX) % 8;
+                    tileRowCount = mem.read(SCY) % 8;
                     break;
                 }
                 break;
