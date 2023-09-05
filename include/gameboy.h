@@ -35,7 +35,6 @@ class Gameboy{
         RegVal_16 imm_16;
         RegVal_8 msb;
         RegVal_8 lsb;
-        FILE* fp;
 
         void printDebug(char* s);
         void limitCycleRate();

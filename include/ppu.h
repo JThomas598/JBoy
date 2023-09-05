@@ -32,24 +32,33 @@ typedef enum State{
     V_BLANK
 }State;
 
+//LCDC MASKS
+constexpr RegVal_8 LCD_ON = 0x80;
+constexpr RegVal_8 WIN_MAP_SEL = 0x40;
+constexpr RegVal_8 WIN_ENABLE = 0x20;
+constexpr RegVal_8 BG_WIN_TILE_BLK_SEL = 0x10;
+constexpr RegVal_8 BG_MAP_SEL = 0x08;
+constexpr RegVal_8 OBJ_SIZE = 0x04;
+constexpr RegVal_8 OBJ_EN = 0x02;
+constexpr RegVal_8 BG_WIN_PRIORITY = 0x01;
+
 class PPU{
     private:
         std::queue<Uint32> fifo;
         SDL_Window* window;
-        SDL_Surface* windowSurface;
-        SDL_Renderer* renderer; 
+        Memory& mem;
         RegVal_8 hCount;
         RegVal_8 vCount;
         RegVal_8 mapX;
         RegVal_8 mapY;
+        RegVal_8 tileRowCount;
+        RegVal_8 trashPixelCount;
         RegVal_8 viewportTileX;
         RegVal_8 viewportTileY;
-        std::chrono::high_resolution_clock::time_point lastFrameTime;
-        RegVal_8 trashPixelCount;
-        RegVal_8 tileRowCount;
-        
-        Memory& mem;
         State state;
+        SDL_Surface* windowSurface;
+        SDL_Renderer* renderer; 
+        std::chrono::high_resolution_clock::time_point lastFrameTime;
 
         Uint32 resolveColor(RegVal_8 val);
         void runFSM();
