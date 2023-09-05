@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+//Number of 8/16-bit Registers
+constexpr int NUM_REGS_8 = 8;
+constexpr int NUM_REGS_16 = 4;
+
 //FLAG MASKS
 constexpr uint8_t ZERO_FLAG = 0b10000000;
 constexpr uint8_t SUBTRACT_FLAG = 0b01000000;
@@ -54,9 +58,10 @@ class CPU{
         Memory& mem;
 
         bool fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry);
-        bool halfCarry(RegVal_8 prev, RegVal_8 curr);
+        bool halfCarry(RegVal_8 prev, RegVal_8 curr, Operation op, bool withCarry);
         RegVal_16 getRegPair(RegIndex_8 msr, RegIndex_8 lsr);
         void setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val);
+        void addRegRegCarry(RegIndex_8 reg1, RegIndex_8 reg2);
         void pushPC();
         void popPC();
         
@@ -592,7 +597,7 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 rlc(RegIndex_8 reg);
+       RegVal_8 rlc(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a left circular rotation on memory location in HL
         * 
@@ -606,7 +611,7 @@ class CPU{
         * 
         * @return new value at location
         */
-       RegVal_8 rrc(RegIndex_8 reg);
+       RegVal_8 rrc(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a right circular rotation on memory location in HL
         * 
@@ -620,7 +625,7 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 rr(RegIndex_8 reg);
+       RegVal_8 rr(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a right rotation through the carry flag on memory location in HL
         * 
@@ -634,7 +639,7 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 rl(RegIndex_8 reg);
+       RegVal_8 rl(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a left rotation through the carry flag on memory location in HL
         * 
