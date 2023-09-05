@@ -8,10 +8,9 @@
 
 using namespace std;
 
-RegVal_8 mem[MEM_SIZE];
-
-Gameboy::Gameboy(){
+Gameboy::Gameboy() : cpu(mem) ,ppu(mem){
     state = FETCH_OP;
+    mem.write(0xFF00, 0x0F);
 }
 
 void Gameboy::printDebug(char*  s){
@@ -22,28 +21,1639 @@ void Gameboy::printDebug(char*  s){
 
 void Gameboy::printStatus(){
     cpu.printStatus();
+    cout << "---OPCODE---" << endl << opcode_names[opcode] << endl;
 }
 
-size_t Gameboy::LoadGame(std::string filename){
+size_t Gameboy::loadGame(std::string filename){
+    char buf[BUFSIZ];
     ifstream game(filename, ios_base::in | ios_base::binary);
     if(game.fail()){
         throw invalid_argument("[ERROR] Gameboy::loadGame(): Failed to open requested gb file\n");
     }
-    size_t bytes_read = 0;
+    size_t total_read = 0;
+    size_t curr_read = 0;
     while(!game.eof()){
-        game.read((char*)mem + bytes_read, BUFSIZ);
-        bytes_read += game.gcount();
+        game.read(buf, BUFSIZ);
+        curr_read = game.gcount();
+        mem.dump(total_read, curr_read, (RegVal_8*)buf);
+        total_read += curr_read;
     }
-    printf("[INFO] ROM read successfully. Size: %ld bytes\n", bytes_read);
-    return bytes_read;
+    printf("[INFO] ROM read successfully. Size: %ld bytes\n", total_read);
+    return total_read;
 }
 
-void Gameboy::EmulateCycle(){
-    if(state == FETCH_OP){
-        if(IME){
-            //handle interrupts
+void Gameboy::loadBootRom(){
+    char buf[BUFSIZ];
+    size_t total_read = 0;
+    size_t curr_read = 0;
+    ifstream boot("dmg_boot.bin", ios_base::in | ios_base::binary);
+    if(boot.fail()){
+        throw invalid_argument("[ERROR] Gameboy::bootRom(): Failed to open requested gb file\n");
+    }
+    while(!boot.eof()){
+        boot.read(buf, BUFSIZ);
+        curr_read = boot.gcount();
+        mem.dump(total_read, curr_read, (RegVal_8*)buf);
+        total_read += curr_read;
+    }
+    printf("[INFO] Boot ROM read successfully. Size: %ld bytes\n", total_read);
+}
+
+
+RegVal_16 Gameboy::emulateCycle(){
+    mem.write(0xFF00, 0x0F);
+    limitCycleRate();
+    runFSM();
+    ppu.emulateCycle();
+    printSerial();
+    return cpu.getPC();
+}
+
+GbState Gameboy::getState(){
+    GbState ret;
+    ret.opcode = opcode;
+    for(int i = 0; i < NUM_REGS_8; i++)
+        ret.regs_8[i] = cpu.getReg((RegIndex_8)i);
+    for(int i = 0; i < NUM_REGS_16; i++)
+        ret.regs_16[i] = cpu.getReg((RegIndex_16)i);
+    return ret;
+}
+
+void Gameboy::limitCycleRate(){
+    static std::chrono::high_resolution_clock::time_point lastCycleTime = std::chrono::high_resolution_clock::now();
+    const int targetCycleRate = CYCLE_RATE;  // Target frame rate in frames per second
+    const std::chrono::duration<double> targetCycleDuration(1.0 / targetCycleRate);
+    // Calculate time since the last frame
+    std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = currentTime - lastCycleTime;
+    lastCycleTime = currentTime;
+    // Wait to draw next frame
+    std::chrono::duration<double> sleepTime = targetCycleDuration - elapsed;
+    if (sleepTime > std::chrono::duration<double>(0)) {
+        std::this_thread::sleep_for(sleepTime);
+    }
+}
+
+void Gameboy::printSerial(){
+    if(mem.read(SC) == 0x81){
+        mem.write(SC, 0x00); //clear request
+        char c = mem.read(SB);
+        if(c == '\n'){
+            cout << std::endl;
         }
-        opcode = mem[cpu.getPC()];
+        else{
+            cout << c;
+        }
+    }
+}
+
+void Gameboy::executeCBOP(){
+    switch(cb_op){
+        case RRC_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC A\n");
+            #endif
+            cpu.rrc(A, true);
+            break;
+        case RRC_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC B\n");
+            #endif
+            cpu.rrc(B, true);
+            break;
+        case RRC_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC C\n", true);
+            #endif
+            cpu.rrc(C, true);
+            break;
+        case RRC_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC D\n", true);
+            #endif
+            cpu.rrc(D, true);
+            break;
+        case RRC_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC E\n", true);
+            #endif
+            cpu.rrc(E, true);
+            break;
+        case RRC_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC H\n", true);
+            #endif
+            cpu.rrc(H, true);
+            break;
+        case RRC_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC L\n", true);
+            #endif
+            cpu.rrc(L, true);
+            break;
+        case RRC_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RRC (HL)\n", true);
+            #endif
+            cpu.rrcInd();
+            break;
+        case RR_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR A\n", true);
+            #endif
+            cpu.rr(A, true);
+            break;
+        case RR_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR B\n", true);
+            #endif
+            cpu.rr(B, true);
+            break;
+        case RR_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR C\n", true);
+            #endif
+            cpu.rr(C, true);
+            break;
+        case RR_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR D\n", true);
+            #endif
+            cpu.rr(D, true);
+            break;
+        case RR_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR E\n", true);
+            #endif
+            cpu.rr(E, true);
+            break;
+        case RR_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR H\n", true);
+            #endif
+            cpu.rr(H, true);
+            break;
+        case RR_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR L\n", true);
+            #endif
+            cpu.rr(L, true);
+            break;
+        case RR_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RR (HL)\n", true);
+            #endif
+            cpu.rrInd();
+            break;
+        case RLC_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC A\n", true);
+            #endif
+            cpu.rlc(A, true);
+            break;
+        case RLC_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC B\n", true);
+            #endif
+            cpu.rlc(B, true);
+            break;
+        case RLC_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC C\n", true);
+            #endif
+            cpu.rlc(C, true);
+            break;
+        case RLC_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC D\n", true);
+            #endif
+            cpu.rlc(D, true);
+            break;
+        case RLC_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC E\n", true);
+            #endif
+            cpu.rlc(E, true);
+            break;
+        case RLC_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC H\n", true);
+            #endif
+            cpu.rlc(H, true);
+            break;
+        case RLC_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC L\n", true);
+            #endif
+            cpu.rlc(L, true);
+            break;
+        case RLC_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC (HL)\n", true);
+            #endif
+            cpu.rlcInd();
+            break;
+        case RL_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL A\n", true);
+            #endif
+            cpu.rl(A, true);
+            break;
+        case RL_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL B\n", true);
+            #endif
+            cpu.rl(B, true);
+            break;
+        case RL_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL C\n", true);
+            #endif
+            cpu.rl(C, true);
+            break;
+        case RL_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL D\n", true);
+            #endif
+            cpu.rl(D, true);
+            break;
+        case RL_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL E\n", true);
+            #endif
+            cpu.rl(E, true);
+            break;
+        case RL_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL H\n", true);
+            #endif
+            cpu.rl(H, true);
+            break;
+        case RL_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL L\n", true);
+            #endif
+            cpu.rl(L, true);
+            break;
+        case RL_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL (HL)\n");
+            #endif
+            cpu.rlInd();
+            break;
+        case SLA_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA A\n");
+            #endif
+            cpu.sla(A);
+            break;
+        case SLA_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA B\n");
+            #endif
+            cpu.sla(B);
+            break;
+        case SLA_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA C\n");
+            #endif
+            cpu.sla(C);
+            break;
+        case SLA_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA D\n");
+            #endif
+            cpu.sla(D);
+            break;
+        case SLA_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA E\n");
+            #endif
+            cpu.sla(E);
+            break;
+        case SLA_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA H\n");
+            #endif
+            cpu.sla(H);
+            break;
+        case SLA_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA L\n");
+            #endif
+            cpu.sla(L);
+            break;
+        case SLA_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SLA (HL)\n");
+            #endif
+            cpu.slaInd();
+            break;
+        case SRA_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA A\n");
+            #endif
+            cpu.sra(A);
+            break;
+        case SRA_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA B\n");
+            #endif
+            cpu.sra(B);
+            break;
+        case SRA_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA C\n");
+            #endif
+            cpu.sra(C);
+            break;
+        case SRA_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA D\n");
+            #endif
+            cpu.sra(D);
+            break;
+        case SRA_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA E\n");
+            #endif
+            cpu.sra(E);
+            break;
+        case SRA_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA H\n");
+            #endif
+            cpu.sra(H);
+            break;
+        case SRA_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA L\n");
+            #endif
+            cpu.sra(L);
+            break;
+        case SRA_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRA (HL)\n");
+            #endif
+            cpu.sraInd();
+            break;
+        case SRL_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL A\n");
+            #endif
+            cpu.srl(A);
+            break;
+        case SRL_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL B\n");
+            #endif
+            cpu.srl(B);
+            break;
+        case SRL_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL C\n");
+            #endif
+            cpu.srl(C);
+            break;
+        case SRL_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL D\n");
+            #endif
+            cpu.srl(D);
+            break;
+        case SRL_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL E\n");
+            #endif
+            cpu.srl(E);
+            break;
+        case SRL_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL H\n");
+            #endif
+            cpu.srl(H);
+            break;
+        case SRL_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL L\n");
+            #endif
+            cpu.srl(L);
+            break;
+        case SRL_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SRL (HL)\n");
+            #endif
+            cpu.srlInd();
+            break;
+        case SWAP_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP A\n");
+            #endif
+            cpu.swap(A);
+            break;
+        case SWAP_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP B\n");
+            #endif
+            cpu.swap(B);
+            break;
+        case SWAP_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP C\n");
+            #endif
+            cpu.swap(C);
+            break;
+        case SWAP_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP D\n");
+            #endif
+            cpu.swap(D);
+            break;
+        case SWAP_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP E\n");
+            #endif
+            cpu.swap(E);
+            break;
+        case SWAP_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP H\n");
+            #endif
+            cpu.swap(H);
+            break;
+        case SWAP_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP L\n");
+            #endif
+            cpu.swap(L);
+            break;
+        case SWAP_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SWAP (HL)\n");
+            #endif
+            cpu.swapInd();
+            break;
+        case BIT_0_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,A\n");
+            #endif
+            cpu.bit(A,BIT_ZERO);
+            break;
+        case BIT_1_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,A\n");
+            #endif
+            cpu.bit(A,BIT_ONE);
+            break;
+        case BIT_2_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,A\n");
+            #endif
+            cpu.bit(A,BIT_TWO);
+            break;
+        case BIT_3_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,A\n");
+            #endif
+            cpu.bit(A,BIT_THREE);
+            break;
+        case BIT_4_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,A\n");
+            #endif
+            cpu.bit(A,BIT_FOUR);
+            break;
+        case BIT_5_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,A\n");
+            #endif
+            cpu.bit(A,BIT_FIVE);
+            break;
+        case BIT_6_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,A\n");
+            #endif
+            cpu.bit(A,BIT_SIX);
+            break;
+        case BIT_7_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,A\n");
+            #endif
+            cpu.bit(A,BIT_SEVEN);
+            break;
+        case BIT_0_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,B\n");
+            #endif
+            cpu.bit(B,BIT_ZERO);
+            break;
+        case BIT_1_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,B\n");
+            #endif
+            cpu.bit(B,BIT_ONE);
+            break;
+        case BIT_2_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,B\n");
+            #endif
+            cpu.bit(B,BIT_TWO);
+            break;
+        case BIT_3_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,B\n");
+            #endif
+            cpu.bit(B,BIT_THREE);
+            break;
+        case BIT_4_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,B\n");
+            #endif
+            cpu.bit(B,BIT_FOUR);
+            break;
+        case BIT_5_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,B\n");
+            #endif
+            cpu.bit(B,BIT_FIVE);
+            break;
+        case BIT_6_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,B\n");
+            #endif
+            cpu.bit(B,BIT_SIX);
+            break;
+        case BIT_7_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,B\n");
+            #endif
+            cpu.bit(B,BIT_SEVEN);
+            break;
+        case BIT_0_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,C\n");
+            #endif
+            cpu.bit(C,BIT_ZERO);
+            break;
+        case BIT_1_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,C\n");
+            #endif
+            cpu.bit(C,BIT_ONE);
+            break;
+        case BIT_2_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,C\n");
+            #endif
+            cpu.bit(C,BIT_TWO);
+            break;
+        case BIT_3_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,C\n");
+            #endif
+            cpu.bit(C,BIT_THREE);
+            break;
+        case BIT_4_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,C\n");
+            #endif
+            cpu.bit(C,BIT_FOUR);
+            break;
+        case BIT_5_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,C\n");
+            #endif
+            cpu.bit(C,BIT_FIVE);
+            break;
+        case BIT_6_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,C\n");
+            #endif
+            cpu.bit(C,BIT_SIX);
+            break;
+        case BIT_7_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,C\n");
+            #endif
+            cpu.bit(C,BIT_SEVEN);
+            break;
+        case BIT_0_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,D\n");
+            #endif
+            cpu.bit(D,BIT_ZERO);
+            break;
+        case BIT_1_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,D\n");
+            #endif
+            cpu.bit(D,BIT_ONE);
+            break;
+        case BIT_2_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,D\n");
+            #endif
+            cpu.bit(D,BIT_TWO);
+            break;
+        case BIT_3_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,D\n");
+            #endif
+            cpu.bit(D,BIT_THREE);
+            break;
+        case BIT_4_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,D\n");
+            #endif
+            cpu.bit(D,BIT_FOUR);
+            break;
+        case BIT_5_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,D\n");
+            #endif
+            cpu.bit(D,BIT_FIVE);
+            break;
+        case BIT_6_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,D\n");
+            #endif
+            cpu.bit(D,BIT_SIX);
+            break;
+        case BIT_7_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,D\n");
+            #endif
+            cpu.bit(D,BIT_SEVEN);
+            break;
+        case BIT_0_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,E\n");
+            #endif
+            cpu.bit(E,BIT_ZERO);
+            break;
+        case BIT_1_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,E\n");
+            #endif
+            cpu.bit(E,BIT_ONE);
+            break;
+        case BIT_2_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,E\n");
+            #endif
+            cpu.bit(E,BIT_TWO);
+            break;
+        case BIT_3_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,E\n");
+            #endif
+            cpu.bit(E,BIT_THREE);
+            break;
+        case BIT_4_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,E\n");
+            #endif
+            cpu.bit(E,BIT_FOUR);
+            break;
+        case BIT_5_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,E\n");
+            #endif
+            cpu.bit(E,BIT_FIVE);
+            break;
+        case BIT_6_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,E\n");
+            #endif
+            cpu.bit(E,BIT_SIX);
+            break;
+        case BIT_7_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,E\n");
+            #endif
+            cpu.bit(E,BIT_SEVEN);
+            break;
+        case BIT_0_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,H\n");
+            #endif
+            cpu.bit(H,BIT_ZERO);
+            break;
+        case BIT_1_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,H\n");
+            #endif
+            cpu.bit(H,BIT_ONE);
+            break;
+        case BIT_2_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,H\n");
+            #endif
+            cpu.bit(H,BIT_TWO);
+            break;
+        case BIT_3_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,H\n");
+            #endif
+            cpu.bit(H,BIT_THREE);
+            break;
+        case BIT_4_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,H\n");
+            #endif
+            cpu.bit(H,BIT_FOUR);
+            break;
+        case BIT_5_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,H\n");
+            #endif
+            cpu.bit(H,BIT_FIVE);
+            break;
+        case BIT_6_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,H\n");
+            #endif
+            cpu.bit(H,BIT_SIX);
+            break;
+        case BIT_7_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,H\n");
+            #endif
+            cpu.bit(H,BIT_SEVEN);
+            break;
+        case BIT_0_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,L\n");
+            #endif
+            cpu.bit(L,BIT_ZERO);
+            break;
+        case BIT_1_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,L\n");
+            #endif
+            cpu.bit(L,BIT_ONE);
+            break;
+        case BIT_2_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,L\n");
+            #endif
+            cpu.bit(L,BIT_TWO);
+            break;
+        case BIT_3_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,L\n");
+            #endif
+            cpu.bit(L,BIT_THREE);
+            break;
+        case BIT_4_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,L\n");
+            #endif
+            cpu.bit(L,BIT_FOUR);
+            break;
+        case BIT_5_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,L\n");
+            #endif
+            cpu.bit(L,BIT_FIVE);
+            break;
+        case BIT_6_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,L\n");
+            #endif
+            cpu.bit(L,BIT_SIX);
+            break;
+        case BIT_7_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,L\n");
+            #endif
+            cpu.bit(L,BIT_SEVEN);
+            break;
+        case BIT_0_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 0,IND\n");
+            #endif
+            cpu.bitInd(BIT_ZERO);
+            break;
+        case BIT_1_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 1,IND\n");
+            #endif
+            cpu.bitInd(BIT_ONE);
+            break;
+        case BIT_2_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 2,IND\n");
+            #endif
+            cpu.bitInd(BIT_TWO);
+            break;
+        case BIT_3_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 3,IND\n");
+            #endif
+            cpu.bitInd(BIT_THREE);
+            break;
+        case BIT_4_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 4,IND\n");
+            #endif
+            cpu.bitInd(BIT_FOUR);
+            break;
+        case BIT_5_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 5,IND\n");
+            #endif
+            cpu.bitInd(BIT_FIVE);
+            break;
+        case BIT_6_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 6,IND\n");
+            #endif
+            cpu.bitInd(BIT_SIX);
+            break;
+        case BIT_7_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: BIT 7,IND\n");
+            #endif
+            cpu.bitInd(BIT_SEVEN);
+            break;
+        case RES_0_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,A\n");
+            #endif
+            cpu.res(A,BIT_ZERO);
+            break;
+        case RES_1_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,A\n");
+            #endif
+            cpu.res(A,BIT_ONE);
+            break;
+        case RES_2_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,A\n");
+            #endif
+            cpu.res(A,BIT_TWO);
+            break;
+        case RES_3_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,A\n");
+            #endif
+            cpu.res(A,BIT_THREE);
+            break;
+        case RES_4_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,A\n");
+            #endif
+            cpu.res(A,BIT_FOUR);
+            break;
+        case RES_5_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,A\n");
+            #endif
+            cpu.res(A,BIT_FIVE);
+            break;
+        case RES_6_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,A\n");
+            #endif
+            cpu.res(A,BIT_SIX);
+            break;
+        case RES_7_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,A\n");
+            #endif
+            cpu.res(A,BIT_SEVEN);
+            break;
+        case RES_0_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,B\n");
+            #endif
+            cpu.res(B,BIT_ZERO);
+            break;
+        case RES_1_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,B\n");
+            #endif
+            cpu.res(B,BIT_ONE);
+            break;
+        case RES_2_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,B\n");
+            #endif
+            cpu.res(B,BIT_TWO);
+            break;
+        case RES_3_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,B\n");
+            #endif
+            cpu.res(B,BIT_THREE);
+            break;
+        case RES_4_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,B\n");
+            #endif
+            cpu.res(B,BIT_FOUR);
+            break;
+        case RES_5_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,B\n");
+            #endif
+            cpu.res(B,BIT_FIVE);
+            break;
+        case RES_6_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,B\n");
+            #endif
+            cpu.res(B,BIT_SIX);
+            break;
+        case RES_7_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,B\n");
+            #endif
+            cpu.res(B,BIT_SEVEN);
+            break;
+        case RES_0_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,C\n");
+            #endif
+            cpu.res(C,BIT_ZERO);
+            break;
+        case RES_1_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,C\n");
+            #endif
+            cpu.res(C,BIT_ONE);
+            break;
+        case RES_2_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,C\n");
+            #endif
+            cpu.res(C,BIT_TWO);
+            break;
+        case RES_3_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,C\n");
+            #endif
+            cpu.res(C,BIT_THREE);
+            break;
+        case RES_4_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,C\n");
+            #endif
+            cpu.res(C,BIT_FOUR);
+            break;
+        case RES_5_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,C\n");
+            #endif
+            cpu.res(C,BIT_FIVE);
+            break;
+        case RES_6_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,C\n");
+            #endif
+            cpu.res(C,BIT_SIX);
+            break;
+        case RES_7_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,C\n");
+            #endif
+            cpu.res(C,BIT_SEVEN);
+            break;
+        case RES_0_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,D\n");
+            #endif
+            cpu.res(D,BIT_ZERO);
+            break;
+        case RES_1_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,D\n");
+            #endif
+            cpu.res(D,BIT_ONE);
+            break;
+        case RES_2_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,D\n");
+            #endif
+            cpu.res(D,BIT_TWO);
+            break;
+        case RES_3_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,D\n");
+            #endif
+            cpu.res(D,BIT_THREE);
+            break;
+        case RES_4_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,D\n");
+            #endif
+            cpu.res(D,BIT_FOUR);
+            break;
+        case RES_5_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,D\n");
+            #endif
+            cpu.res(D,BIT_FIVE);
+            break;
+        case RES_6_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,D\n");
+            #endif
+            cpu.res(D,BIT_SIX);
+            break;
+        case RES_7_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,D\n");
+            #endif
+            cpu.res(D,BIT_SEVEN);
+            break;
+        case RES_0_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,E\n");
+            #endif
+            cpu.res(E,BIT_ZERO);
+            break;
+        case RES_1_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,E\n");
+            #endif
+            cpu.res(E,BIT_ONE);
+            break;
+        case RES_2_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,E\n");
+            #endif
+            cpu.res(E,BIT_TWO);
+            break;
+        case RES_3_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,E\n");
+            #endif
+            cpu.res(E,BIT_THREE);
+            break;
+        case RES_4_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,E\n");
+            #endif
+            cpu.res(E,BIT_FOUR);
+            break;
+        case RES_5_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,E\n");
+            #endif
+            cpu.res(E,BIT_FIVE);
+            break;
+        case RES_6_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,E\n");
+            #endif
+            cpu.res(E,BIT_SIX);
+            break;
+        case RES_7_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,E\n");
+            #endif
+            cpu.res(E,BIT_SEVEN);
+            break;
+        case RES_0_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,H\n");
+            #endif
+            cpu.res(H,BIT_ZERO);
+            break;
+        case RES_1_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,H\n");
+            #endif
+            cpu.res(H,BIT_ONE);
+            break;
+        case RES_2_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,H\n");
+            #endif
+            cpu.res(H,BIT_TWO);
+            break;
+        case RES_3_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,H\n");
+            #endif
+            cpu.res(H,BIT_THREE);
+            break;
+        case RES_4_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,H\n");
+            #endif
+            cpu.res(H,BIT_FOUR);
+            break;
+        case RES_5_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,H\n");
+            #endif
+            cpu.res(H,BIT_FIVE);
+            break;
+        case RES_6_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,H\n");
+            #endif
+            cpu.res(H,BIT_SIX);
+            break;
+        case RES_7_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,H\n");
+            #endif
+            cpu.res(H,BIT_SEVEN);
+            break;
+        case RES_0_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,L\n");
+            #endif
+            cpu.res(L,BIT_ZERO);
+            break;
+        case RES_1_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,L\n");
+            #endif
+            cpu.res(L,BIT_ONE);
+            break;
+        case RES_2_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,L\n");
+            #endif
+            cpu.res(L,BIT_TWO);
+            break;
+        case RES_3_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,L\n");
+            #endif
+            cpu.res(L,BIT_THREE);
+            break;
+        case RES_4_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,L\n");
+            #endif
+            cpu.res(L,BIT_FOUR);
+            break;
+        case RES_5_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,L\n");
+            #endif
+            cpu.res(L,BIT_FIVE);
+            break;
+        case RES_6_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,L\n");
+            #endif
+            cpu.res(L,BIT_SIX);
+            break;
+        case RES_7_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,L\n");
+            #endif
+            cpu.res(L,BIT_SEVEN);
+            break;
+        case RES_0_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 0,IND\n");
+            #endif
+            cpu.resInd(BIT_ZERO);
+            break;
+        case RES_1_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 1,IND\n");
+            #endif
+            cpu.resInd(BIT_ONE);
+            break;
+        case RES_2_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 2,IND\n");
+            #endif
+            cpu.resInd(BIT_TWO);
+            break;
+        case RES_3_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 3,IND\n");
+            #endif
+            cpu.resInd(BIT_THREE);
+            break;
+        case RES_4_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 4,IND\n");
+            #endif
+            cpu.resInd(BIT_FOUR);
+            break;
+        case RES_5_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 5,IND\n");
+            #endif
+            cpu.resInd(BIT_FIVE);
+            break;
+        case RES_6_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 6,IND\n");
+            #endif
+            cpu.resInd(BIT_SIX);
+            break;
+        case RES_7_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RES 7,IND\n");
+            #endif
+            cpu.resInd(BIT_SEVEN);
+            break;
+        case SET_0_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,A\n");
+            #endif
+            cpu.set(A,BIT_ZERO);
+            break;
+        case SET_1_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,A\n");
+            #endif
+            cpu.set(A,BIT_ONE);
+            break;
+        case SET_2_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,A\n");
+            #endif
+            cpu.set(A,BIT_TWO);
+            break;
+        case SET_3_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,A\n");
+            #endif
+            cpu.set(A,BIT_THREE);
+            break;
+        case SET_4_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,A\n");
+            #endif
+            cpu.set(A,BIT_FOUR);
+            break;
+        case SET_5_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,A\n");
+            #endif
+            cpu.set(A,BIT_FIVE);
+            break;
+        case SET_6_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,A\n");
+            #endif
+            cpu.set(A,BIT_SIX);
+            break;
+        case SET_7_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,A\n");
+            #endif
+            cpu.set(A,BIT_SEVEN);
+            break;
+        case SET_0_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,B\n");
+            #endif
+            cpu.set(B,BIT_ZERO);
+            break;
+        case SET_1_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,B\n");
+            #endif
+            cpu.set(B,BIT_ONE);
+            break;
+        case SET_2_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,B\n");
+            #endif
+            cpu.set(B,BIT_TWO);
+            break;
+        case SET_3_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,B\n");
+            #endif
+            cpu.set(B,BIT_THREE);
+            break;
+        case SET_4_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,B\n");
+            #endif
+            cpu.set(B,BIT_FOUR);
+            break;
+        case SET_5_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,B\n");
+            #endif
+            cpu.set(B,BIT_FIVE);
+            break;
+        case SET_6_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,B\n");
+            #endif
+            cpu.set(B,BIT_SIX);
+            break;
+        case SET_7_B:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,B\n");
+            #endif
+            cpu.set(B,BIT_SEVEN);
+            break;
+        case SET_0_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,C\n");
+            #endif
+            cpu.set(C,BIT_ZERO);
+            break;
+        case SET_1_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,C\n");
+            #endif
+            cpu.set(C,BIT_ONE);
+            break;
+        case SET_2_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,C\n");
+            #endif
+            cpu.set(C,BIT_TWO);
+            break;
+        case SET_3_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,C\n");
+            #endif
+            cpu.set(C,BIT_THREE);
+            break;
+        case SET_4_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,C\n");
+            #endif
+            cpu.set(C,BIT_FOUR);
+            break;
+        case SET_5_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,C\n");
+            #endif
+            cpu.set(C,BIT_FIVE);
+            break;
+        case SET_6_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,C\n");
+            #endif
+            cpu.set(C,BIT_SIX);
+            break;
+        case SET_7_C:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,C\n");
+            #endif
+            cpu.set(C,BIT_SEVEN);
+            break;
+        case SET_0_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,D\n");
+            #endif
+            cpu.set(D,BIT_ZERO);
+            break;
+        case SET_1_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,D\n");
+            #endif
+            cpu.set(D,BIT_ONE);
+            break;
+        case SET_2_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,D\n");
+            #endif
+            cpu.set(D,BIT_TWO);
+            break;
+        case SET_3_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,D\n");
+            #endif
+            cpu.set(D,BIT_THREE);
+            break;
+        case SET_4_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,D\n");
+            #endif
+            cpu.set(D,BIT_FOUR);
+            break;
+        case SET_5_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,D\n");
+            #endif
+            cpu.set(D,BIT_FIVE);
+            break;
+        case SET_6_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,D\n");
+            #endif
+            cpu.set(D,BIT_SIX);
+            break;
+        case SET_7_D:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,D\n");
+            #endif
+            cpu.set(D,BIT_SEVEN);
+            break;
+        case SET_0_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,E\n");
+            #endif
+            cpu.set(E,BIT_ZERO);
+            break;
+        case SET_1_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,E\n");
+            #endif
+            cpu.set(E,BIT_ONE);
+            break;
+        case SET_2_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,E\n");
+            #endif
+            cpu.set(E,BIT_TWO);
+            break;
+        case SET_3_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,E\n");
+            #endif
+            cpu.set(E,BIT_THREE);
+            break;
+        case SET_4_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,E\n");
+            #endif
+            cpu.set(E,BIT_FOUR);
+            break;
+        case SET_5_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,E\n");
+            #endif
+            cpu.set(E,BIT_FIVE);
+            break;
+        case SET_6_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,E\n");
+            #endif
+            cpu.set(E,BIT_SIX);
+            break;
+        case SET_7_E:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,E\n");
+            #endif
+            cpu.set(E,BIT_SEVEN);
+            break;
+        case SET_0_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,H\n");
+            #endif
+            cpu.set(H,BIT_ZERO);
+            break;
+        case SET_1_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,H\n");
+            #endif
+            cpu.set(H,BIT_ONE);
+            break;
+        case SET_2_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,H\n");
+            #endif
+            cpu.set(H,BIT_TWO);
+            break;
+        case SET_3_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,H\n");
+            #endif
+            cpu.set(H,BIT_THREE);
+            break;
+        case SET_4_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,H\n");
+            #endif
+            cpu.set(H,BIT_FOUR);
+            break;
+        case SET_5_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,H\n");
+            #endif
+            cpu.set(H,BIT_FIVE);
+            break;
+        case SET_6_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,H\n");
+            #endif
+            cpu.set(H,BIT_SIX);
+            break;
+        case SET_7_H:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,H\n");
+            #endif
+            cpu.set(H,BIT_SEVEN);
+            break;
+        case SET_0_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,L\n");
+            #endif
+            cpu.set(L,BIT_ZERO);
+            break;
+        case SET_1_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,L\n");
+            #endif
+            cpu.set(L,BIT_ONE);
+            break;
+        case SET_2_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,L\n");
+            #endif
+            cpu.set(L,BIT_TWO);
+            break;
+        case SET_3_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,L\n");
+            #endif
+            cpu.set(L,BIT_THREE);
+            break;
+        case SET_4_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,L\n");
+            #endif
+            cpu.set(L,BIT_FOUR);
+            break;
+        case SET_5_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,L\n");
+            #endif
+            cpu.set(L,BIT_FIVE);
+            break;
+        case SET_6_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,L\n");
+            #endif
+            cpu.set(L,BIT_SIX);
+            break;
+        case SET_7_L:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,L\n");
+            #endif
+            cpu.set(L,BIT_SEVEN);
+            break;
+        case SET_0_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 0,IND\n");
+            #endif
+            cpu.setInd(BIT_ZERO);
+            break;
+        case SET_1_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 1,IND\n");
+            #endif
+            cpu.setInd(BIT_ONE);
+            break;
+        case SET_2_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 2,IND\n");
+            #endif
+            cpu.setInd(BIT_TWO);
+            break;
+        case SET_3_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 3,IND\n");
+            #endif
+            cpu.setInd(BIT_THREE);
+            break;
+        case SET_4_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 4,IND\n");
+            #endif
+            cpu.setInd(BIT_FOUR);
+            break;
+        case SET_5_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 5,IND\n");
+            #endif
+            cpu.setInd(BIT_FIVE);
+            break;
+        case SET_6_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 6,IND\n");
+            #endif
+            cpu.setInd(BIT_SIX);
+            break;
+        case SET_7_IND:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: SET 7,IND\n");
+            #endif
+            cpu.setInd(BIT_SEVEN);
+            break;
+        default:
+            break;
+    }
+
+}
+
+void Gameboy::runFSM(){
+    if(state == FETCH_OP){
+        opcode = mem.read(cpu.getPC());
         #ifdef debug
             printf("[DEBUG] Fetched new opcode. Value: 0x%02x\n", opcode);
         #endif
@@ -425,7 +2035,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD B,%u\n", imm_8);
                     #endif
@@ -444,7 +2054,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD C,%u\n", imm_8);
                     #endif
@@ -463,7 +2073,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD D,%u\n", imm_8);
                     #endif
@@ -482,7 +2092,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD E,%u\n", imm_8);
                     #endif
@@ -501,7 +2111,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD H,%u\n", imm_8);
                     #endif
@@ -520,7 +2130,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD L,%u\n", imm_8);
                     #endif
@@ -539,7 +2149,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD A,%u\n", imm_8);
                     #endif
@@ -797,7 +2407,7 @@ void Gameboy::EmulateCycle(){
                     break;
                 case FETCH_1:
                     state = EXECUTE_1;
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     break;
                 case EXECUTE_1:
                     #ifdef debug
@@ -886,12 +2496,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -902,7 +2512,7 @@ void Gameboy::EmulateCycle(){
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD A,(0x%04x)\n",imm_16);
                     #endif
-                    cpu.loadAImmIndirect(imm_16);
+                    cpu.loadAImmDirect(imm_16);
                     state = FETCH_OP;
                     cpu.incPC();
                     break;
@@ -917,12 +2527,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -933,7 +2543,7 @@ void Gameboy::EmulateCycle(){
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: LD (0x%04x),A\n", imm_16);
                     #endif
-                    cpu.loadImmAIndirect(imm_16);
+                    cpu.loadImmADirect(imm_16);
                     state = FETCH_OP;
                     cpu.incPC();
                     break;
@@ -982,7 +2592,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -1004,7 +2614,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -1094,12 +2704,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     cpu.incPC();
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -1122,12 +2732,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -1150,12 +2760,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -1178,12 +2788,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -1206,12 +2816,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC();
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -1441,7 +3051,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: ADD %u\n",imm_8);
                     #endif
@@ -1592,7 +3202,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: ADC %u\n", imm_8);
                     #endif
@@ -1677,7 +3287,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: SUB %u\n",imm_8);
                     #endif
@@ -1762,7 +3372,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: SBC %u\n",imm_8);
                     #endif
@@ -1847,7 +3457,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: CP %u\n", imm_8);
                     #endif
@@ -2064,7 +3674,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: AND %u\n",imm_8);
                     #endif
@@ -2149,7 +3759,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: OR %u\n",imm_8);
                     #endif
@@ -2234,7 +3844,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: XOR %u\n",imm_8);
                     #endif
@@ -2365,7 +3975,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: ADD HL,SP+%d\n",(int8_t)imm_8);
                     #endif
@@ -2373,6 +3983,7 @@ void Gameboy::EmulateCycle(){
                     break;
                 case EXECUTE_1:
                     cpu.loadHLSPOffset((int8_t)imm_8);
+                    cpu.incPC();
                     state = FETCH_OP; 
                     break;
                 default:
@@ -2386,11 +3997,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: ADD SP,%d\n",(int8_t)imm_8);
                     #endif
                     cpu.addSPImm((int8_t)imm_8);
+                    state = FETCH_OP;
                     cpu.incPC();
                     break;
                 default:
@@ -2404,12 +4016,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -2432,7 +4044,6 @@ void Gameboy::EmulateCycle(){
                 printf("[DEBUG] instrunction resolved to: JP HL\n");
             #endif
             cpu.jumpHL();
-            cpu.incPC();
             break;
         case JP_C:
             switch(state){
@@ -2441,12 +4052,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2476,12 +4087,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2511,12 +4122,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2546,12 +4157,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC(); 
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2581,7 +4192,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case FETCH_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: JR %d\n",imm_8);
                     #endif
@@ -2602,7 +4213,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: JR c,%d\n",imm_8);
                     #endif
@@ -2628,7 +4239,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: JR nc,%d\n",imm_8);
                     #endif
@@ -2654,7 +4265,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: JR z,%d\n",imm_8);
                     #endif
@@ -2680,7 +4291,7 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC(); 
                     break;
                 case EXECUTE_1:
-                    imm_8 = mem[cpu.getPC()];
+                    imm_8 = mem.read(cpu.getPC());
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: JR nz,%d\n",imm_8);
                     #endif
@@ -2706,12 +4317,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC();
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     state = EXECUTE_1;
                     break;
                 case EXECUTE_1:
@@ -2742,12 +4353,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC();
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2783,12 +4394,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC();
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2824,12 +4435,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC();
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -2865,12 +4476,12 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case FETCH_1:
-                    lsb = mem[cpu.getPC()];
+                    lsb = mem.read(cpu.getPC());
                     state = FETCH_2;
                     cpu.incPC();
                     break;
                 case FETCH_2:
-                    msb = mem[cpu.getPC()];
+                    msb = mem.read(cpu.getPC());
                     imm_16 = 0x0000;
                     imm_16 |= msb;
                     imm_16 = imm_16 << 8;
@@ -3243,13 +4854,30 @@ void Gameboy::EmulateCycle(){
             #ifdef debug
                 printf("[DEBUG] instrunction resolved to: RRC A\n");
             #endif
-            cpu.rrc(A);
+            cpu.rrc(A, false);
+            cpu.incPC();
             break;
         case RR_A:
             #ifdef debug
                 printf("[DEBUG] instrunction resolved to: RR A\n");
             #endif
-            cpu.rr(A);
+            cpu.rr(A, false);
+            cpu.incPC();
+            break;
+            break;
+        case RL_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RL A\n");
+            #endif
+            cpu.rl(A, false);
+            cpu.incPC();
+            break;
+        case RLC_A:
+            #ifdef debug
+                printf("[DEBUG] instrunction resolved to: RLC A\n");
+            #endif
+            cpu.rlc(A, false);
+            cpu.incPC();
             break;
         case CB_OP:
             switch(state){
@@ -3261,1549 +4889,8 @@ void Gameboy::EmulateCycle(){
                     cpu.incPC();
                     break;
                 case EXECUTE_1:
-                    cb_op = mem[cpu.getPC()];
-                    switch(cb_op){
-                        case RRC_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC A\n");
-                            #endif
-                            cpu.rrc(A);
-                            break;
-                        case RRC_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC B\n");
-                            #endif
-                            cpu.rrc(B);
-                            break;
-                        case RRC_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC C\n");
-                            #endif
-                            cpu.rrc(C);
-                            break;
-                        case RRC_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC D\n");
-                            #endif
-                            cpu.rrc(D);
-                            break;
-                        case RRC_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC E\n");
-                            #endif
-                            cpu.rrc(E);
-                            break;
-                        case RRC_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC H\n");
-                            #endif
-                            cpu.rrc(H);
-                            break;
-                        case RRC_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC L\n");
-                            #endif
-                            cpu.rrc(L);
-                            break;
-                        case RRC_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RRC (HL)\n");
-                            #endif
-                            cpu.rrcInd();
-                            break;
-                        case RR_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR A\n");
-                            #endif
-                            cpu.rr(A);
-                            break;
-                        case RR_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR B\n");
-                            #endif
-                            cpu.rr(B);
-                            break;
-                        case RR_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR C\n");
-                            #endif
-                            cpu.rr(C);
-                            break;
-                        case RR_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR D\n");
-                            #endif
-                            cpu.rr(D);
-                            break;
-                        case RR_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR E\n");
-                            #endif
-                            cpu.rr(E);
-                            break;
-                        case RR_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR H\n");
-                            #endif
-                            cpu.rr(H);
-                            break;
-                        case RR_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR L\n");
-                            #endif
-                            cpu.rr(L);
-                            break;
-                        case RR_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RR (HL)\n");
-                            #endif
-                            cpu.rrInd();
-                            break;
-                        case RLC_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC A\n");
-                            #endif
-                            cpu.rlc(A);
-                            break;
-                        case RLC_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC B\n");
-                            #endif
-                            cpu.rlc(B);
-                            break;
-                        case RLC_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC C\n");
-                            #endif
-                            cpu.rlc(C);
-                            break;
-                        case RLC_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC D\n");
-                            #endif
-                            cpu.rlc(D);
-                            break;
-                        case RLC_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC E\n");
-                            #endif
-                            cpu.rlc(E);
-                            break;
-                        case RLC_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC H\n");
-                            #endif
-                            cpu.rlc(H);
-                            break;
-                        case RLC_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC L\n");
-                            #endif
-                            cpu.rlc(L);
-                            break;
-                        case RLC_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RLC (HL)\n");
-                            #endif
-                            cpu.rlcInd();
-                            break;
-                        case RL_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL A\n");
-                            #endif
-                            cpu.rl(A);
-                            break;
-                        case RL_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL B\n");
-                            #endif
-                            cpu.rl(B);
-                            break;
-                        case RL_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL C\n");
-                            #endif
-                            cpu.rl(C);
-                            break;
-                        case RL_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL D\n");
-                            #endif
-                            cpu.rl(D);
-                            break;
-                        case RL_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL E\n");
-                            #endif
-                            cpu.rl(E);
-                            break;
-                        case RL_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL H\n");
-                            #endif
-                            cpu.rl(H);
-                            break;
-                        case RL_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL L\n");
-                            #endif
-                            cpu.rl(L);
-                            break;
-                        case RL_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RL (HL)\n");
-                            #endif
-                            cpu.rlInd();
-                            break;
-                        /*
-                        case SLA_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA A\n");
-                            #endif
-                            cpu.sla(A);
-                            break;
-                        case SLA_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA B\n");
-                            #endif
-                            cpu.sla(B);
-                            break;
-                        case SLA_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA C\n");
-                            #endif
-                            cpu.sla(C);
-                            break;
-                        case SLA_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA D\n");
-                            #endif
-                            cpu.sla(D);
-                            break;
-                        case SLA_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA E\n");
-                            #endif
-                            cpu.sla(E);
-                            break;
-                        case SLA_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA H\n");
-                            #endif
-                            cpu.sla(H);
-                            break;
-                        case SLA_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA L\n");
-                            #endif
-                            cpu.sla(L);
-                            break;
-                        case SLA_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SLA (HL)\n");
-                            #endif
-                            cpu.slaInd();
-                            break;
-                        case SRA_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA A\n");
-                            #endif
-                            cpu.sra(A);
-                            break;
-                        case SRA_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA B\n");
-                            #endif
-                            cpu.sra(B);
-                            break;
-                        case SRA_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA C\n");
-                            #endif
-                            cpu.sra(C);
-                            break;
-                        case SRA_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA D\n");
-                            #endif
-                            cpu.sra(D);
-                            break;
-                        case SRA_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA E\n");
-                            #endif
-                            cpu.sra(E);
-                            break;
-                        case SRA_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA H\n");
-                            #endif
-                            cpu.sra(H);
-                            break;
-                        case SRA_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA L\n");
-                            #endif
-                            cpu.sra(L);
-                            break;
-                        case SRA_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRA (HL)\n");
-                            #endif
-                            cpu.sraInd();
-                            break;
-                        case SRL_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL A\n");
-                            #endif
-                            cpu.srl(A);
-                            break;
-                        case SRL_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL B\n");
-                            #endif
-                            cpu.srl(B);
-                            break;
-                        case SRL_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL C\n");
-                            #endif
-                            cpu.srl(C);
-                            break;
-                        case SRL_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL D\n");
-                            #endif
-                            cpu.srl(D);
-                            break;
-                        case SRL_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL E\n");
-                            #endif
-                            cpu.srl(E);
-                            break;
-                        case SRL_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL H\n");
-                            #endif
-                            cpu.srl(H);
-                            break;
-                        case SRL_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL L\n");
-                            #endif
-                            cpu.srl(L);
-                            break;
-                        case SRL_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SRL (HL)\n");
-                            #endif
-                            cpu.srlInd();
-                            break;
-                        case SWAP_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP A\n");
-                            #endif
-                            cpu.swap(A);
-                            break;
-                        case SWAP_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP B\n");
-                            #endif
-                            cpu.swap(B);
-                            break;
-                        case SWAP_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP C\n");
-                            #endif
-                            cpu.swap(C);
-                            break;
-                        case SWAP_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP D\n");
-                            #endif
-                            cpu.swap(D);
-                            break;
-                        case SWAP_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP E\n");
-                            #endif
-                            cpu.swap(E);
-                            break;
-                        case SWAP_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP H\n");
-                            #endif
-                            cpu.swap(H);
-                            break;
-                        case SWAP_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP L\n");
-                            #endif
-                            cpu.swap(L);
-                            break;
-                        case SWAP_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SWAP (HL)\n");
-                            #endif
-                            cpu.swapInd();
-                            break;
-                        case BIT_0_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,A\n");
-                            #endif
-                            cpu.bit(A,BIT_ZERO);
-                            break;
-                        case BIT_1_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,A\n");
-                            #endif
-                            cpu.bit(A,BIT_ONE);
-                            break;
-                        case BIT_2_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,A\n");
-                            #endif
-                            cpu.bit(A,BIT_TWO);
-                            break;
-                        case BIT_3_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,A\n");
-                            #endif
-                            cpu.bit(A,BIT_THREE);
-                            break;
-                        case BIT_4_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,A\n");
-                            #endif
-                            cpu.bit(A,BIT_FOUR);
-                            break;
-                        case BIT_5_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,A\n");
-                            #endif
-                            cpu.bit(A,BIT_FIVE);
-                            break;
-                        case BIT_6_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,A\n");
-                            #endif
-                            cpu.bit(A,BIT_SIX);
-                            break;
-                        case BIT_7_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,A\n");
-                            #endif
-                            cpu.bit(A,BIT_SEVEN);
-                            break;
-                        case BIT_0_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,B\n");
-                            #endif
-                            cpu.bit(B,BIT_ZERO);
-                            break;
-                        case BIT_1_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,B\n");
-                            #endif
-                            cpu.bit(B,BIT_ONE);
-                            break;
-                        case BIT_2_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,B\n");
-                            #endif
-                            cpu.bit(B,BIT_TWO);
-                            break;
-                        case BIT_3_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,B\n");
-                            #endif
-                            cpu.bit(B,BIT_THREE);
-                            break;
-                        case BIT_4_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,B\n");
-                            #endif
-                            cpu.bit(B,BIT_FOUR);
-                            break;
-                        case BIT_5_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,B\n");
-                            #endif
-                            cpu.bit(B,BIT_FIVE);
-                            break;
-                        case BIT_6_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,B\n");
-                            #endif
-                            cpu.bit(B,BIT_SIX);
-                            break;
-                        case BIT_7_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,B\n");
-                            #endif
-                            cpu.bit(B,BIT_SEVEN);
-                            break;
-                        case BIT_0_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,C\n");
-                            #endif
-                            cpu.bit(C,BIT_ZERO);
-                            break;
-                        case BIT_1_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,C\n");
-                            #endif
-                            cpu.bit(C,BIT_ONE);
-                            break;
-                        case BIT_2_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,C\n");
-                            #endif
-                            cpu.bit(C,BIT_TWO);
-                            break;
-                        case BIT_3_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,C\n");
-                            #endif
-                            cpu.bit(C,BIT_THREE);
-                            break;
-                        case BIT_4_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,C\n");
-                            #endif
-                            cpu.bit(C,BIT_FOUR);
-                            break;
-                        case BIT_5_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,C\n");
-                            #endif
-                            cpu.bit(C,BIT_FIVE);
-                            break;
-                        case BIT_6_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,C\n");
-                            #endif
-                            cpu.bit(C,BIT_SIX);
-                            break;
-                        case BIT_7_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,C\n");
-                            #endif
-                            cpu.bit(C,BIT_SEVEN);
-                            break;
-                        case BIT_0_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,D\n");
-                            #endif
-                            cpu.bit(D,BIT_ZERO);
-                            break;
-                        case BIT_1_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,D\n");
-                            #endif
-                            cpu.bit(D,BIT_ONE);
-                            break;
-                        case BIT_2_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,D\n");
-                            #endif
-                            cpu.bit(D,BIT_TWO);
-                            break;
-                        case BIT_3_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,D\n");
-                            #endif
-                            cpu.bit(D,BIT_THREE);
-                            break;
-                        case BIT_4_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,D\n");
-                            #endif
-                            cpu.bit(D,BIT_FOUR);
-                            break;
-                        case BIT_5_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,D\n");
-                            #endif
-                            cpu.bit(D,BIT_FIVE);
-                            break;
-                        case BIT_6_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,D\n");
-                            #endif
-                            cpu.bit(D,BIT_SIX);
-                            break;
-                        case BIT_7_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,D\n");
-                            #endif
-                            cpu.bit(D,BIT_SEVEN);
-                            break;
-                        case BIT_0_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,E\n");
-                            #endif
-                            cpu.bit(E,BIT_ZERO);
-                            break;
-                        case BIT_1_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,E\n");
-                            #endif
-                            cpu.bit(E,BIT_ONE);
-                            break;
-                        case BIT_2_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,E\n");
-                            #endif
-                            cpu.bit(E,BIT_TWO);
-                            break;
-                        case BIT_3_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,E\n");
-                            #endif
-                            cpu.bit(E,BIT_THREE);
-                            break;
-                        case BIT_4_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,E\n");
-                            #endif
-                            cpu.bit(E,BIT_FOUR);
-                            break;
-                        case BIT_5_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,E\n");
-                            #endif
-                            cpu.bit(E,BIT_FIVE);
-                            break;
-                        case BIT_6_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,E\n");
-                            #endif
-                            cpu.bit(E,BIT_SIX);
-                            break;
-                        case BIT_7_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,E\n");
-                            #endif
-                            cpu.bit(E,BIT_SEVEN);
-                            break;
-                        case BIT_0_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,H\n");
-                            #endif
-                            cpu.bit(H,BIT_ZERO);
-                            break;
-                        case BIT_1_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,H\n");
-                            #endif
-                            cpu.bit(H,BIT_ONE);
-                            break;
-                        case BIT_2_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,H\n");
-                            #endif
-                            cpu.bit(H,BIT_TWO);
-                            break;
-                        case BIT_3_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,H\n");
-                            #endif
-                            cpu.bit(H,BIT_THREE);
-                            break;
-                        case BIT_4_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,H\n");
-                            #endif
-                            cpu.bit(H,BIT_FOUR);
-                            break;
-                        case BIT_5_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,H\n");
-                            #endif
-                            cpu.bit(H,BIT_FIVE);
-                            break;
-                        case BIT_6_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,H\n");
-                            #endif
-                            cpu.bit(H,BIT_SIX);
-                            break;
-                        case BIT_7_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,H\n");
-                            #endif
-                            cpu.bit(H,BIT_SEVEN);
-                            break;
-                        case BIT_0_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,L\n");
-                            #endif
-                            cpu.bit(L,BIT_ZERO);
-                            break;
-                        case BIT_1_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,L\n");
-                            #endif
-                            cpu.bit(L,BIT_ONE);
-                            break;
-                        case BIT_2_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,L\n");
-                            #endif
-                            cpu.bit(L,BIT_TWO);
-                            break;
-                        case BIT_3_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,L\n");
-                            #endif
-                            cpu.bit(L,BIT_THREE);
-                            break;
-                        case BIT_4_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,L\n");
-                            #endif
-                            cpu.bit(L,BIT_FOUR);
-                            break;
-                        case BIT_5_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,L\n");
-                            #endif
-                            cpu.bit(L,BIT_FIVE);
-                            break;
-                        case BIT_6_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,L\n");
-                            #endif
-                            cpu.bit(L,BIT_SIX);
-                            break;
-                        case BIT_7_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,L\n");
-                            #endif
-                            cpu.bit(L,BIT_SEVEN);
-                            break;
-                        case BIT_0_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 0,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_ZERO);
-                            break;
-                        case BIT_1_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 1,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_ONE);
-                            break;
-                        case BIT_2_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 2,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_TWO);
-                            break;
-                        case BIT_3_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 3,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_THREE);
-                            break;
-                        case BIT_4_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 4,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_FOUR);
-                            break;
-                        case BIT_5_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 5,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_FIVE);
-                            break;
-                        case BIT_6_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 6,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_SIX);
-                            break;
-                        case BIT_7_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: BIT 7,IND\n");
-                            #endif
-                            cpu.bitInd(BIT_SEVEN);
-                            break;
-                        case RES_0_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,A\n");
-                            #endif
-                            cpu.res(A,BIT_ZERO);
-                            break;
-                        case RES_1_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,A\n");
-                            #endif
-                            cpu.res(A,BIT_ONE);
-                            break;
-                        case RES_2_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,A\n");
-                            #endif
-                            cpu.res(A,BIT_TWO);
-                            break;
-                        case RES_3_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,A\n");
-                            #endif
-                            cpu.res(A,BIT_THREE);
-                            break;
-                        case RES_4_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,A\n");
-                            #endif
-                            cpu.res(A,BIT_FOUR);
-                            break;
-                        case RES_5_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,A\n");
-                            #endif
-                            cpu.res(A,BIT_FIVE);
-                            break;
-                        case RES_6_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,A\n");
-                            #endif
-                            cpu.res(A,BIT_SIX);
-                            break;
-                        case RES_7_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,A\n");
-                            #endif
-                            cpu.res(A,BIT_SEVEN);
-                            break;
-                        case RES_0_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,B\n");
-                            #endif
-                            cpu.res(B,BIT_ZERO);
-                            break;
-                        case RES_1_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,B\n");
-                            #endif
-                            cpu.res(B,BIT_ONE);
-                            break;
-                        case RES_2_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,B\n");
-                            #endif
-                            cpu.res(B,BIT_TWO);
-                            break;
-                        case RES_3_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,B\n");
-                            #endif
-                            cpu.res(B,BIT_THREE);
-                            break;
-                        case RES_4_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,B\n");
-                            #endif
-                            cpu.res(B,BIT_FOUR);
-                            break;
-                        case RES_5_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,B\n");
-                            #endif
-                            cpu.res(B,BIT_FIVE);
-                            break;
-                        case RES_6_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,B\n");
-                            #endif
-                            cpu.res(B,BIT_SIX);
-                            break;
-                        case RES_7_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,B\n");
-                            #endif
-                            cpu.res(B,BIT_SEVEN);
-                            break;
-                        case RES_0_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,C\n");
-                            #endif
-                            cpu.res(C,BIT_ZERO);
-                            break;
-                        case RES_1_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,C\n");
-                            #endif
-                            cpu.res(C,BIT_ONE);
-                            break;
-                        case RES_2_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,C\n");
-                            #endif
-                            cpu.res(C,BIT_TWO);
-                            break;
-                        case RES_3_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,C\n");
-                            #endif
-                            cpu.res(C,BIT_THREE);
-                            break;
-                        case RES_4_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,C\n");
-                            #endif
-                            cpu.res(C,BIT_FOUR);
-                            break;
-                        case RES_5_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,C\n");
-                            #endif
-                            cpu.res(C,BIT_FIVE);
-                            break;
-                        case RES_6_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,C\n");
-                            #endif
-                            cpu.res(C,BIT_SIX);
-                            break;
-                        case RES_7_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,C\n");
-                            #endif
-                            cpu.res(C,BIT_SEVEN);
-                            break;
-                        case RES_0_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,D\n");
-                            #endif
-                            cpu.res(D,BIT_ZERO);
-                            break;
-                        case RES_1_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,D\n");
-                            #endif
-                            cpu.res(D,BIT_ONE);
-                            break;
-                        case RES_2_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,D\n");
-                            #endif
-                            cpu.res(D,BIT_TWO);
-                            break;
-                        case RES_3_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,D\n");
-                            #endif
-                            cpu.res(D,BIT_THREE);
-                            break;
-                        case RES_4_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,D\n");
-                            #endif
-                            cpu.res(D,BIT_FOUR);
-                            break;
-                        case RES_5_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,D\n");
-                            #endif
-                            cpu.res(D,BIT_FIVE);
-                            break;
-                        case RES_6_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,D\n");
-                            #endif
-                            cpu.res(D,BIT_SIX);
-                            break;
-                        case RES_7_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,D\n");
-                            #endif
-                            cpu.res(D,BIT_SEVEN);
-                            break;
-                        case RES_0_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,E\n");
-                            #endif
-                            cpu.res(E,BIT_ZERO);
-                            break;
-                        case RES_1_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,E\n");
-                            #endif
-                            cpu.res(E,BIT_ONE);
-                            break;
-                        case RES_2_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,E\n");
-                            #endif
-                            cpu.res(E,BIT_TWO);
-                            break;
-                        case RES_3_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,E\n");
-                            #endif
-                            cpu.res(E,BIT_THREE);
-                            break;
-                        case RES_4_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,E\n");
-                            #endif
-                            cpu.res(E,BIT_FOUR);
-                            break;
-                        case RES_5_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,E\n");
-                            #endif
-                            cpu.res(E,BIT_FIVE);
-                            break;
-                        case RES_6_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,E\n");
-                            #endif
-                            cpu.res(E,BIT_SIX);
-                            break;
-                        case RES_7_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,E\n");
-                            #endif
-                            cpu.res(E,BIT_SEVEN);
-                            break;
-                        case RES_0_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,H\n");
-                            #endif
-                            cpu.res(H,BIT_ZERO);
-                            break;
-                        case RES_1_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,H\n");
-                            #endif
-                            cpu.res(H,BIT_ONE);
-                            break;
-                        case RES_2_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,H\n");
-                            #endif
-                            cpu.res(H,BIT_TWO);
-                            break;
-                        case RES_3_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,H\n");
-                            #endif
-                            cpu.res(H,BIT_THREE);
-                            break;
-                        case RES_4_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,H\n");
-                            #endif
-                            cpu.res(H,BIT_FOUR);
-                            break;
-                        case RES_5_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,H\n");
-                            #endif
-                            cpu.res(H,BIT_FIVE);
-                            break;
-                        case RES_6_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,H\n");
-                            #endif
-                            cpu.res(H,BIT_SIX);
-                            break;
-                        case RES_7_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,H\n");
-                            #endif
-                            cpu.res(H,BIT_SEVEN);
-                            break;
-                        case RES_0_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,L\n");
-                            #endif
-                            cpu.res(L,BIT_ZERO);
-                            break;
-                        case RES_1_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,L\n");
-                            #endif
-                            cpu.res(L,BIT_ONE);
-                            break;
-                        case RES_2_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,L\n");
-                            #endif
-                            cpu.res(L,BIT_TWO);
-                            break;
-                        case RES_3_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,L\n");
-                            #endif
-                            cpu.res(L,BIT_THREE);
-                            break;
-                        case RES_4_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,L\n");
-                            #endif
-                            cpu.res(L,BIT_FOUR);
-                            break;
-                        case RES_5_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,L\n");
-                            #endif
-                            cpu.res(L,BIT_FIVE);
-                            break;
-                        case RES_6_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,L\n");
-                            #endif
-                            cpu.res(L,BIT_SIX);
-                            break;
-                        case RES_7_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,L\n");
-                            #endif
-                            cpu.res(L,BIT_SEVEN);
-                            break;
-                        case RES_0_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 0,IND\n");
-                            #endif
-                            cpu.resInd(BIT_ZERO);
-                            break;
-                        case RES_1_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 1,IND\n");
-                            #endif
-                            cpu.resInd(BIT_ONE);
-                            break;
-                        case RES_2_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 2,IND\n");
-                            #endif
-                            cpu.resInd(BIT_TWO);
-                            break;
-                        case RES_3_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 3,IND\n");
-                            #endif
-                            cpu.resInd(BIT_THREE);
-                            break;
-                        case RES_4_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 4,IND\n");
-                            #endif
-                            cpu.resInd(BIT_FOUR);
-                            break;
-                        case RES_5_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 5,IND\n");
-                            #endif
-                            cpu.resInd(BIT_FIVE);
-                            break;
-                        case RES_6_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 6,IND\n");
-                            #endif
-                            cpu.resInd(BIT_SIX);
-                            break;
-                        case RES_7_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: RES 7,IND\n");
-                            #endif
-                            cpu.resInd(BIT_SEVEN);
-                            break;
-                        case SET_0_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,A\n");
-                            #endif
-                            cpu.set(A,BIT_ZERO);
-                            break;
-                        case SET_1_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,A\n");
-                            #endif
-                            cpu.set(A,BIT_ONE);
-                            break;
-                        case SET_2_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,A\n");
-                            #endif
-                            cpu.set(A,BIT_TWO);
-                            break;
-                        case SET_3_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,A\n");
-                            #endif
-                            cpu.set(A,BIT_THREE);
-                            break;
-                        case SET_4_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,A\n");
-                            #endif
-                            cpu.set(A,BIT_FOUR);
-                            break;
-                        case SET_5_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,A\n");
-                            #endif
-                            cpu.set(A,BIT_FIVE);
-                            break;
-                        case SET_6_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,A\n");
-                            #endif
-                            cpu.set(A,BIT_SIX);
-                            break;
-                        case SET_7_A:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,A\n");
-                            #endif
-                            cpu.set(A,BIT_SEVEN);
-                            break;
-                        case SET_0_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,B\n");
-                            #endif
-                            cpu.set(B,BIT_ZERO);
-                            break;
-                        case SET_1_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,B\n");
-                            #endif
-                            cpu.set(B,BIT_ONE);
-                            break;
-                        case SET_2_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,B\n");
-                            #endif
-                            cpu.set(B,BIT_TWO);
-                            break;
-                        case SET_3_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,B\n");
-                            #endif
-                            cpu.set(B,BIT_THREE);
-                            break;
-                        case SET_4_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,B\n");
-                            #endif
-                            cpu.set(B,BIT_FOUR);
-                            break;
-                        case SET_5_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,B\n");
-                            #endif
-                            cpu.set(B,BIT_FIVE);
-                            break;
-                        case SET_6_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,B\n");
-                            #endif
-                            cpu.set(B,BIT_SIX);
-                            break;
-                        case SET_7_B:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,B\n");
-                            #endif
-                            cpu.set(B,BIT_SEVEN);
-                            break;
-                        case SET_0_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,C\n");
-                            #endif
-                            cpu.set(C,BIT_ZERO);
-                            break;
-                        case SET_1_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,C\n");
-                            #endif
-                            cpu.set(C,BIT_ONE);
-                            break;
-                        case SET_2_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,C\n");
-                            #endif
-                            cpu.set(C,BIT_TWO);
-                            break;
-                        case SET_3_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,C\n");
-                            #endif
-                            cpu.set(C,BIT_THREE);
-                            break;
-                        case SET_4_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,C\n");
-                            #endif
-                            cpu.set(C,BIT_FOUR);
-                            break;
-                        case SET_5_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,C\n");
-                            #endif
-                            cpu.set(C,BIT_FIVE);
-                            break;
-                        case SET_6_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,C\n");
-                            #endif
-                            cpu.set(C,BIT_SIX);
-                            break;
-                        case SET_7_C:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,C\n");
-                            #endif
-                            cpu.set(C,BIT_SEVEN);
-                            break;
-                        case SET_0_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,D\n");
-                            #endif
-                            cpu.set(D,BIT_ZERO);
-                            break;
-                        case SET_1_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,D\n");
-                            #endif
-                            cpu.set(D,BIT_ONE);
-                            break;
-                        case SET_2_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,D\n");
-                            #endif
-                            cpu.set(D,BIT_TWO);
-                            break;
-                        case SET_3_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,D\n");
-                            #endif
-                            cpu.set(D,BIT_THREE);
-                            break;
-                        case SET_4_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,D\n");
-                            #endif
-                            cpu.set(D,BIT_FOUR);
-                            break;
-                        case SET_5_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,D\n");
-                            #endif
-                            cpu.set(D,BIT_FIVE);
-                            break;
-                        case SET_6_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,D\n");
-                            #endif
-                            cpu.set(D,BIT_SIX);
-                            break;
-                        case SET_7_D:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,D\n");
-                            #endif
-                            cpu.set(D,BIT_SEVEN);
-                            break;
-                        case SET_0_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,E\n");
-                            #endif
-                            cpu.set(E,BIT_ZERO);
-                            break;
-                        case SET_1_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,E\n");
-                            #endif
-                            cpu.set(E,BIT_ONE);
-                            break;
-                        case SET_2_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,E\n");
-                            #endif
-                            cpu.set(E,BIT_TWO);
-                            break;
-                        case SET_3_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,E\n");
-                            #endif
-                            cpu.set(E,BIT_THREE);
-                            break;
-                        case SET_4_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,E\n");
-                            #endif
-                            cpu.set(E,BIT_FOUR);
-                            break;
-                        case SET_5_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,E\n");
-                            #endif
-                            cpu.set(E,BIT_FIVE);
-                            break;
-                        case SET_6_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,E\n");
-                            #endif
-                            cpu.set(E,BIT_SIX);
-                            break;
-                        case SET_7_E:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,E\n");
-                            #endif
-                            cpu.set(E,BIT_SEVEN);
-                            break;
-                        case SET_0_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,H\n");
-                            #endif
-                            cpu.set(H,BIT_ZERO);
-                            break;
-                        case SET_1_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,H\n");
-                            #endif
-                            cpu.set(H,BIT_ONE);
-                            break;
-                        case SET_2_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,H\n");
-                            #endif
-                            cpu.set(H,BIT_TWO);
-                            break;
-                        case SET_3_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,H\n");
-                            #endif
-                            cpu.set(H,BIT_THREE);
-                            break;
-                        case SET_4_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,H\n");
-                            #endif
-                            cpu.set(H,BIT_FOUR);
-                            break;
-                        case SET_5_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,H\n");
-                            #endif
-                            cpu.set(H,BIT_FIVE);
-                            break;
-                        case SET_6_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,H\n");
-                            #endif
-                            cpu.set(H,BIT_SIX);
-                            break;
-                        case SET_7_H:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,H\n");
-                            #endif
-                            cpu.set(H,BIT_SEVEN);
-                            break;
-                        case SET_0_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,L\n");
-                            #endif
-                            cpu.set(L,BIT_ZERO);
-                            break;
-                        case SET_1_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,L\n");
-                            #endif
-                            cpu.set(L,BIT_ONE);
-                            break;
-                        case SET_2_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,L\n");
-                            #endif
-                            cpu.set(L,BIT_TWO);
-                            break;
-                        case SET_3_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,L\n");
-                            #endif
-                            cpu.set(L,BIT_THREE);
-                            break;
-                        case SET_4_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,L\n");
-                            #endif
-                            cpu.set(L,BIT_FOUR);
-                            break;
-                        case SET_5_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,L\n");
-                            #endif
-                            cpu.set(L,BIT_FIVE);
-                            break;
-                        case SET_6_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,L\n");
-                            #endif
-                            cpu.set(L,BIT_SIX);
-                            break;
-                        case SET_7_L:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,L\n");
-                            #endif
-                            cpu.set(L,BIT_SEVEN);
-                            break;
-                        case SET_0_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 0,IND\n");
-                            #endif
-                            cpu.setInd(BIT_ZERO);
-                            break;
-                        case SET_1_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 1,IND\n");
-                            #endif
-                            cpu.setInd(BIT_ONE);
-                            break;
-                        case SET_2_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 2,IND\n");
-                            #endif
-                            cpu.setInd(BIT_TWO);
-                            break;
-                        case SET_3_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 3,IND\n");
-                            #endif
-                            cpu.setInd(BIT_THREE);
-                            break;
-                        case SET_4_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 4,IND\n");
-                            #endif
-                            cpu.setInd(BIT_FOUR);
-                            break;
-                        case SET_5_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 5,IND\n");
-                            #endif
-                            cpu.setInd(BIT_FIVE);
-                            break;
-                        case SET_6_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 6,IND\n");
-                            #endif
-                            cpu.setInd(BIT_SIX);
-                            break;
-                        case SET_7_IND:
-                            #ifdef debug
-                                printf("[DEBUG] instrunction resolved to: SET 7,IND\n");
-                            #endif
-                            cpu.setInd(BIT_SEVEN);
-                            break;
-                        default:
-                            break;
-                    */
-                    }
+                    cb_op = mem.read(cpu.getPC());
+                    executeCBOP();
                     state = FETCH_OP;
                     cpu.incPC();
                     break;
@@ -4815,4 +4902,5 @@ void Gameboy::EmulateCycle(){
             throw runtime_error("[ERROR] Opcode could not be resolved.\n");
             break;
     }
+
 }
