@@ -33,7 +33,7 @@ build/debug/obj%.o: src/debug/%.cpp
 	g++ $(FLAGS) -I include -c $< -o $@
 
 build/test/asm/obj/%.o: src/test/asm/%.asm
-	rgbasm -L -o $@ $^
+	rgbasm -L -I include -o $@ $^
 
 clean:
 	rm -rf build/*/obj/* $(TARGET) *.exe
