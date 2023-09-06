@@ -593,8 +593,29 @@ RegVal_8 CPU::setCarryFlag(){
 }
 
 RegVal_8 CPU::decimalAdjustAcc(){
-    RegVal_8 ret = 0;
-    return ret;
+    if(!(regs_8[F] & SUBTRACT_FLAG)){
+        if((regs_8[F] & CARRY_FLAG) || (regs_8[A] > 0x99)){
+            regs_8[A] += 0x60;
+            regs_8[F] |= CARRY_FLAG;
+        }
+        if((regs_8[F] & HALF_CARRY_FLAG) || (regs_8[A] & 0x0f) > 0x09){
+            regs_8[A] += 0x6;
+        }
+    }
+    else{
+        if(regs_8[F] & CARRY_FLAG)
+            regs_8[A] -= 0x60;
+        if(regs_8[F] & HALF_CARRY_FLAG)
+            regs_8[A] -= 0x6;
+    }
+    if(regs_8[A] == 0){
+        regs_8[F] |= ZERO_FLAG;
+    }
+    else{
+        regs_8[F] &= ~ZERO_FLAG;
+    }
+    regs_8[F] &= ~HALF_CARRY_FLAG;
+    return regs_8[A];
 }
 
 RegVal_8 CPU::compAcc(){
