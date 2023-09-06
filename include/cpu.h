@@ -56,13 +56,6 @@ class CPU{
         RegVal_8 regs_8[8];
         RegVal_16 regs_16[4];
         Memory& mem;
-        uint8_t opcode;
-        uint8_t cb_op;
-        InstrState state;
-        RegVal_8 imm_8;
-        RegVal_16 imm_16;
-        RegVal_8 msb;
-        RegVal_8 lsb;
 
         bool fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry);
         bool halfCarry(RegVal_8 prev, RegVal_8 curr, Operation op, bool withCarry);
