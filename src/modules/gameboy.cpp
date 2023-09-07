@@ -10,7 +10,10 @@ using namespace std;
 
 Gameboy::Gameboy() : cpu(mem) ,ppu(mem){
     state = FETCH_OP;
+    IME = false;
     mem.write(0xFF00, 0x0F);
+    mem.write(IE, 0x00);
+    mem.write(IF, 0x00);
 }
 
 void Gameboy::printDebug(char*  s){
@@ -57,6 +60,38 @@ void Gameboy::loadBootRom(){
         total_read += curr_read;
     }
     printf("[INFO] Boot ROM read successfully. Size: %ld bytes\n", total_read);
+}
+
+void Gameboy::clearInterrupt(RegVal_8 mask){
+    RegVal_8 iFlag = mem.read(IF);
+    iFlag &= ~mask;
+    mem.write(IF, iFlag);
+    IME = false;
+}
+
+void Gameboy::handleInterrupt(){
+    RegVal_8 iEn = mem.read(IE);
+    RegVal_8 iFlag = mem.read(IF);
+    if(VBLANK_INT & iEn & iFlag){
+        clearInterrupt(VBLANK_INT);
+        cpu.callInt(VBLANK_ISR);
+    }
+    else if(LCD_STAT_INT & iEn & iFlag){
+        clearInterrupt(LCD_STAT_INT);
+        cpu.callInt(LCD_STAT_ISR);
+    }
+    else if(TIMER_INT & iEn & iFlag){
+        clearInterrupt(TIMER_INT);
+        cpu.callInt(TIMER_ISR);
+    }
+    else if(SERIAL_INT & iEn & iFlag){
+        clearInterrupt(SERIAL_INT);
+        cpu.callInt(SERIAL_ISR);
+    }
+    else if(JOYPAD_INT & iEn & iFlag){
+        clearInterrupt(JOYPAD_INT);
+        cpu.callInt(JOYPAD_ISR);
+    }
 }
 
 
@@ -1653,6 +1688,9 @@ void Gameboy::executeCBOP(){
 
 void Gameboy::runFSM(){
     if(state == FETCH_OP){
+        if(IME){
+            handleInterrupt();
+        }
         opcode = mem.read(cpu.getPC());
         #ifdef debug
             printf("[DEBUG] Fetched new opcode. Value: 0x%02x\n", opcode);
@@ -1664,24 +1702,22 @@ void Gameboy::runFSM(){
             break; 
         case STOP:
             //TODO
-            cpu.incPC();
             break; 
         case HALT:
             //TODO
-            cpu.incPC();
             break;
         case DI:
             #ifdef debug
                 printf("[DEBUG] instrunction resolved to: DI\n");
             #endif
-            cpu.di();
+            IME = false;
             cpu.incPC();
             break;
         case EI:
             #ifdef debug
                 printf("[DEBUG] instrunction resolved to: EI\n");
             #endif
-            cpu.ei();
+            IME = true;
             cpu.incPC();
             break;
         case LD_B_B:
@@ -4662,7 +4698,8 @@ void Gameboy::runFSM(){
                     #ifdef debug
                         printf("[DEBUG] instrunction resolved to: RETI\n");
                     #endif
-                    cpu.reti();
+                    cpu.ret();
+                    IME = true;
                     break;
                 case EXECUTE_2:
                     state = EXECUTE_3;
@@ -4899,6 +4936,7 @@ void Gameboy::runFSM(){
             }
             break;
         default:
+            std::cout << "last opcode: 0x" << std::hex << (int)opcode << std::endl;
             throw runtime_error("[ERROR] Opcode could not be resolved.\n");
             break;
     }

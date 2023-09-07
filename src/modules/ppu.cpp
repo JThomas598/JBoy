@@ -186,6 +186,7 @@ void PPU::runFSM(){
                 mem.write(LY, ++vCount);
                 if(vCount == HEIGHT){
                     mem.write(STAT, 0x01);
+                    mem.write(IF, mem.read(IF) | VBLANK_INT);
                     state = V_BLANK;
                     SDL_UpdateWindowSurface(window);
                     //updateDisplay();

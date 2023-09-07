@@ -15,6 +15,22 @@ constexpr RegVal_16 STAT = 0xFF41;
 constexpr RegVal_16 SCY = 0xFF42;
 constexpr RegVal_16 SCX = 0xFF43;
 constexpr RegVal_16 LY = 0xFF44;
+constexpr RegVal_16 IE = 0xFFFF;
+constexpr RegVal_16 IF = 0xFF0F;
+
+//Interrupt Service Routine Addresses
+constexpr RegVal_16 VBLANK_ISR = 0x40; 
+constexpr RegVal_16 LCD_STAT_ISR = 0x48; 
+constexpr RegVal_16 TIMER_ISR = 0x50;
+constexpr RegVal_16 SERIAL_ISR = 0x58;
+constexpr RegVal_16 JOYPAD_ISR = 0x60;
+
+//Interrupt Masks
+constexpr RegVal_8 VBLANK_INT = 0x01;
+constexpr RegVal_8 LCD_STAT_INT = 0x02;
+constexpr RegVal_8 TIMER_INT = 0x04;
+constexpr RegVal_8 SERIAL_INT = 0x08;
+constexpr RegVal_8 JOYPAD_INT = 0x10;
 
 
 class Memory{

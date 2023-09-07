@@ -63,9 +63,11 @@ class CPU{
         void setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val);
         void addRegRegCarry(RegIndex_8 reg1, RegIndex_8 reg2);
         void pushPC();
+        void pushPCInc();
         void popPC();
         
     public:
+        RegVal_16 callInt(RegVal_16 addr);
         /**
             @brief Constructor
 

@@ -28,6 +28,7 @@ class Gameboy{
         CPU cpu;
         PPU ppu;
         Memory mem;
+        bool IME;
         uint8_t opcode;
         uint8_t cb_op;
         InstrState state;
@@ -41,6 +42,8 @@ class Gameboy{
         void runFSM();
         void executeCBOP();
         void printSerial();
+        void clearInterrupt(RegVal_8 mask);
+        void handleInterrupt();
     public:
         void loadBootRom();
         Gameboy();

@@ -95,7 +95,6 @@ void CPU::setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val){
 
 
 void CPU::pushPC(){
-    regs_16[PC]++;
     mem.write(--regs_16[SP], regs_16[PC] >> 8);
     mem.write(--regs_16[SP], regs_16[PC] & 0x00FF);
 }
@@ -106,8 +105,8 @@ void CPU::popPC(){
     regs_16[PC] = 0x0000;
     lsb = mem.read(regs_16[SP]++);
     msb = mem.read(regs_16[SP]++);
-    regs_16[PC] |= msb;
-    regs_16[PC] = regs_16[PC] << 8;
+    regs_16[PC] = msb;
+    regs_16[PC] <<= 8;
     regs_16[PC] |= lsb;
 }
 
@@ -842,6 +841,13 @@ bool CPU::jumpCond(RegVal_16 addr, Condition cond){
 }
 
 RegVal_16 CPU::call(RegVal_16 addr){
+    regs_16[PC]++;
+    pushPC();
+    regs_16[PC] = addr;
+    return regs_16[PC];
+}
+
+RegVal_16 CPU::callInt(RegVal_16 addr){
     pushPC();
     regs_16[PC] = addr;
     return regs_16[PC];
@@ -851,29 +857,25 @@ bool CPU::callCond(RegVal_16 addr, Condition cond){
     switch(cond){
         case ZERO:
             if(regs_8[F] & ZERO_FLAG){
-                pushPC();
-                regs_16[PC] = addr;
+                call(addr);
                 return true;
             }
             break;
         case NOT_ZERO:
             if(!(regs_8[F] & ZERO_FLAG)){
-                pushPC();
-                regs_16[PC] = addr;
+                call(addr);
                 return true;
             }
             break;
         case CARRY:
             if(regs_8[F] & CARRY_FLAG){
-                pushPC();
-                regs_16[PC] = addr;
+                call(addr);
                 return true;
             }
             break;
         case NO_CARRY:
             if(!(regs_8[F] & CARRY_FLAG)){
-                pushPC();
-                regs_16[PC] = addr;
+                call(addr);
                 return true;
             }
             break;
