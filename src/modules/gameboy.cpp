@@ -8,10 +8,7 @@
 
 using namespace std;
 
-Gameboy::Gameboy() : cpu(mem) ,ppu(mem){
-    state = FETCH_OP;
-    IME = false;
-    mem.write(0xFF00, 0x0F);
+Gameboy::Gameboy() : mem(SYS_PERM){
     mem.write(IE, 0x00);
     mem.write(IF, 0x00);
 }
@@ -38,7 +35,7 @@ size_t Gameboy::loadGame(std::string filename){
     while(!game.eof()){
         game.read(buf, BUFSIZ);
         curr_read = game.gcount();
-        mem.dump(total_read, curr_read, (RegVal_8*)buf);
+        mem.dump(total_read, (RegVal_8*)buf, curr_read);
         total_read += curr_read;
     }
     printf("[INFO] ROM read successfully. Size: %ld bytes\n", total_read);
@@ -56,7 +53,7 @@ void Gameboy::loadBootRom(){
     while(!boot.eof()){
         boot.read(buf, BUFSIZ);
         curr_read = boot.gcount();
-        mem.dump(total_read, curr_read, (RegVal_8*)buf);
+        mem.dump(total_read, (RegVal_8*)buf, curr_read);
         total_read += curr_read;
     }
     printf("[INFO] Boot ROM read successfully. Size: %ld bytes\n", total_read);

@@ -55,7 +55,7 @@ class CPU{
     private:
         RegVal_8 regs_8[8];
         RegVal_16 regs_16[4];
-        Memory& mem;
+        Memory mem;
 
         bool fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry);
         bool halfCarry(RegVal_8 prev, RegVal_8 curr, Operation op, bool withCarry);
@@ -73,7 +73,7 @@ class CPU{
 
             @param mem reference to memory handler
         */
-        CPU(Memory& mem);
+        CPU();
         /**
             @brief  Adds a GP register's value to reg A.
 
