@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <iostream>
 
-CPU::CPU(Memory& mem) : mem(mem){
+CPU::CPU() : mem(CPU_PERM){
     regs_8[A] = 0x01;
     regs_8[B] = 0x00;
     regs_8[C] = 0x13;
