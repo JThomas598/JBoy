@@ -3,40 +3,9 @@
 
 #include <cstdint>
 #include <cstddef>
-#include <array>
 
 typedef uint8_t RegVal_8;
 typedef uint16_t RegVal_16;
-
-//Write Permissions
-typedef enum Perm{
-    CPU_PERM,
-    PPU_PERM,
-    DMA_PERM,
-    SYS_PERM
-}Permission;
-
-//Access Types
-typedef enum Access{
-    READ,
-    WRITE
-}Access;
-
-//Key Memory Map Boundaries
-constexpr RegVal_16 ROM_BANK_0_START = 0x0000;
-constexpr RegVal_16 ROM_BANK_0_END = 0x3FFF;
-constexpr RegVal_16 ROM_BANK_1_START = 0x4000;
-constexpr RegVal_16 ROM_BANK_1_END = 0x7FFF;
-constexpr RegVal_16 ECHO_START = 0xE000;
-constexpr RegVal_16 ECHO_END = 0xFDFF;
-constexpr RegVal_16 BAD_ZONE_START = 0xFEA0;
-constexpr RegVal_16 BAD_ZONE_END = 0xFEFF;
-constexpr RegVal_16 OAM_START = 0xFE00;
-constexpr RegVal_16 OAM_END = 0xFE9F;
-constexpr RegVal_16 HRAM_START = 0xFF80;
-constexpr RegVal_16 HRAM_END = 0xFFFE;
-constexpr RegVal_16 VRAM_START = 0x8000;
-constexpr RegVal_16 VRAM_END = 0x9FFF;
 
 //I/O register addresses
 constexpr RegVal_16 SB = 0xFF01;
@@ -66,15 +35,8 @@ constexpr RegVal_8 JOYPAD_INT = 0x10;
 
 class Memory{
     private:
-        static std::array<RegVal_8,UINT16_MAX+1> mem;
-        static bool ppuLock;
-        static bool dmaLock;
-        const Permission perm;
-
-        bool inRange(const RegVal_16 addr, const RegVal_16 low, const RegVal_16 hi) const;
-        bool checkPerm(const RegVal_16 addr, Access acc) const;
+        RegVal_8 mem[UINT16_MAX + 1];
     public:
-    Memory(Permission perm);
     /**
      * @brief writes a byte to specified address in memory.
      * 
@@ -82,19 +44,19 @@ class Memory{
      * 
      * @param byte data to be written
      * 
-     * @return true if the write was successful, false if it wasn't
+     * @return contents of address after write
      */
-        bool write(const RegVal_16 addr, const RegVal_8 byte) const;
+        RegVal_8 write(RegVal_16 addr, RegVal_8 byte);
     /**
-     * @brief returns a reference to a specified address in memory.
+     * @brief reads a byte from specified address in memory.
      * 
      * @param addr address of interest
      * 
      * @return byte at address
      */
-        RegVal_8 read(const RegVal_16 addr) const;
+        RegVal_8 read(RegVal_16 addr);
     /**
-     * @brief dumps n bytes from buf, starting from addr in memory
+     * @brief reads a byte from specified address in memory.
      * 
      * @param addr starting point of dump
      * 
@@ -102,30 +64,6 @@ class Memory{
      * 
      * @return number of bytes written 
      */
-        RegVal_16 dump(const RegVal_16 addr, const RegVal_8* buf, const size_t n) const;
-    /**
-     * @brief forbids all but HRAM accesses for the CPU. Only Memory instances with the DMA perm can do this.
-     * 
-     * @return true if lock is successful, false if it isn't.
-     */
-        bool lockMemoryDMA();
-    /**
-     * @brief allows CPU to access memory other than HRAM. Only Memory instances with the DMA perm can do this.
-     * 
-     * @return true if lock is successful, false if it isn't.
-     */
-        bool unlockMemoryDMA();
-    /**
-     * @brief forbids VRAM accesses for the CPU. Only Memory instances with the PPU perm can use this.
-     * 
-     * @return true if lock is successful, false if it isn't.
-     */
-        bool lockVram();
-    /**
-     * @brief allows VRAM accesses for the CPU. Only Memory instances with the PPU perm can use this.
-     * 
-     * @return true if lock is successful, false if it isn't.
-     */
-        bool unlockVram();
+        RegVal_16 dump(RegVal_16 addr, size_t n, RegVal_8* buf);
 };
 #endif

@@ -46,7 +46,7 @@ class PPU{
     private:
         std::queue<Uint32> fifo;
         SDL_Window* window;
-        Memory mem;
+        Memory& mem;
         RegVal_8 hCount;
         RegVal_8 vCount;
         RegVal_8 mapX;
@@ -68,7 +68,7 @@ class PPU{
         void drawPixel();
         void clearHangingPixels();
     public:
-        PPU();
+        PPU(Memory& memr);
         //~PPU();
 
         void emulateCycle();

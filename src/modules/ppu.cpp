@@ -28,7 +28,7 @@ TODO:
 7. Implement switchable pallete (probably with lookup table)
 */
 
-PPU::PPU() : mem(PPU_PERM)
+PPU::PPU(Memory& memr): mem(memr)
 {
     SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_HAPTIC | SDL_INIT_HAPTIC | SDL_INIT_EVENTS | SDL_INIT_NOPARACHUTE);
     window = SDL_CreateWindow("JK EMU", 
