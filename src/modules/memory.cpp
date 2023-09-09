@@ -23,6 +23,9 @@ bool Memory::checkPerm(const RegVal_16 addr, const Access acc) const{
     else if(acc == WRITE && inRange(addr, ROM_BANK_0_START, ROM_BANK_1_END)){
         return false;
     }
+    else if(addr == 0xFF00){
+        return false;
+    }
     else if(perm == CPU_PERM){
         if(dmaLock && !inRange(addr, HRAM_START, HRAM_END)){
             throw std::logic_error("Memory::checkPerm(): Illegal CPU access during DMA transfer");
