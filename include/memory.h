@@ -4,16 +4,16 @@
 #include <cstdint>
 #include <cstddef>
 #include <array>
-
-typedef uint8_t RegVal_8;
-typedef uint16_t RegVal_16;
+#include "gb_types.h"
 
 //Write Permissions
 typedef enum Perm{
     CPU_PERM,
     PPU_PERM,
     DMA_PERM,
-    SYS_PERM
+    SYS_PERM,
+    COUNTER_PERM,
+    OAM_PERM
 }Permission;
 
 //Access Types
@@ -23,56 +23,80 @@ typedef enum Access{
 }Access;
 
 //Key Memory Map Boundaries
-constexpr RegVal_16 ROM_BANK_0_START = 0x0000;
-constexpr RegVal_16 ROM_BANK_0_END = 0x3FFF;
-constexpr RegVal_16 ROM_BANK_1_START = 0x4000;
-constexpr RegVal_16 ROM_BANK_1_END = 0x7FFF;
-constexpr RegVal_16 ECHO_START = 0xE000;
-constexpr RegVal_16 ECHO_END = 0xFDFF;
-constexpr RegVal_16 BAD_ZONE_START = 0xFEA0;
-constexpr RegVal_16 BAD_ZONE_END = 0xFEFF;
-constexpr RegVal_16 OAM_START = 0xFE00;
-constexpr RegVal_16 OAM_END = 0xFE9F;
-constexpr RegVal_16 HRAM_START = 0xFF80;
-constexpr RegVal_16 HRAM_END = 0xFFFE;
-constexpr RegVal_16 VRAM_START = 0x8000;
-constexpr RegVal_16 VRAM_END = 0x9FFF;
+constexpr Regval16 ROM_BANK_0_START = 0x0000;
+constexpr Regval16 ROM_BANK_0_END = 0x3FFF;
+constexpr Regval16 ROM_BANK_1_START = 0x4000;
+constexpr Regval16 ROM_BANK_1_END = 0x7FFF;
+constexpr Regval16 ECHO_START = 0xE000;
+constexpr Regval16 ECHO_END = 0xFDFF;
+constexpr Regval16 BAD_ZONE_START = 0xFEA0;
+constexpr Regval16 BAD_ZONE_END = 0xFEFF;
+constexpr Regval16 OAM_START = 0xFE00;
+constexpr Regval16 OAM_END = 0xFE9F;
+constexpr Regval16 HRAM_START = 0xFF80;
+constexpr Regval16 HRAM_END = 0xFFFE;
+constexpr Regval16 VRAM_START = 0x8000;
+constexpr Regval16 VRAM_END = 0x9FFF;
 
 //I/O register addresses
-constexpr RegVal_16 SB = 0xFF01;
-constexpr RegVal_16 SC = 0xFF02;
-constexpr RegVal_16 LCDC = 0xFF40;
-constexpr RegVal_16 STAT = 0xFF41;
-constexpr RegVal_16 SCY = 0xFF42;
-constexpr RegVal_16 SCX = 0xFF43;
-constexpr RegVal_16 LY = 0xFF44;
-constexpr RegVal_16 IE = 0xFFFF;
-constexpr RegVal_16 IF = 0xFF0F;
+constexpr Regval16 SB = 0xFF01;
+constexpr Regval16 SC = 0xFF02;
+constexpr Regval16 LCDC_REG_ADDR = 0xFF40;
+constexpr Regval16 STAT_REG_ADDR = 0xFF41;
+constexpr Regval16 SCY_REG_ADDR = 0xFF42;
+constexpr Regval16 SCX_REG_ADDR = 0xFF43;
+constexpr Regval16 LY_REG_ADDR = 0xFF44;
+constexpr Regval16 IE_REG_ADDR = 0xFFFF;
+constexpr Regval16 JOYP_REG_ADDR = 0xFF00;
+constexpr Regval16 IF_REG_ADDR = 0xFF0F;
+constexpr Regval16 DIV_REG_ADDR = 0xFF04;
+constexpr Regval16 TIMA_REG_ADDR = 0xFF05;
+constexpr Regval16 TMA_REG_ADDR = 0xFF06;
+constexpr Regval16 TAC_REG_ADDR = 0xFF07;
+
+//DMA Reg
+constexpr Regval16 DMA_REG = 0xFF46;
+
+
+//Tilemap/Tiledata Locations
+constexpr Regval16 TILE_MAP_ADDR_1 = 0x9800;
+constexpr Regval16 TILE_MAP_ADDR_2 = 0x9C00;
+constexpr Regval16 TILE_DATA_ADDR_1 = 0x8000;
+constexpr Regval16 TILE_DATA_ADDR_2 = 0x9000;
+
 
 //Interrupt Service Routine Addresses
-constexpr RegVal_16 VBLANK_ISR = 0x40; 
-constexpr RegVal_16 LCD_STAT_ISR = 0x48; 
-constexpr RegVal_16 TIMER_ISR = 0x50;
-constexpr RegVal_16 SERIAL_ISR = 0x58;
-constexpr RegVal_16 JOYPAD_ISR = 0x60;
+constexpr Regval16 VBLANK_ISR_ADDR = 0x40; 
+constexpr Regval16 LCD_STAT_ISR_ADDR = 0x48; 
+constexpr Regval16 TIMER_ISR_ADDR = 0x50;
+constexpr Regval16 SERIAL_ISR_ADDR = 0x58;
+constexpr Regval16 JOYPAD_ISR_ADDR = 0x60;
 
-//Interrupt Masks
-constexpr RegVal_8 VBLANK_INT = 0x01;
-constexpr RegVal_8 LCD_STAT_INT = 0x02;
-constexpr RegVal_8 TIMER_INT = 0x04;
-constexpr RegVal_8 SERIAL_INT = 0x08;
-constexpr RegVal_8 JOYPAD_INT = 0x10;
+//Joypad Masks
+constexpr Regval8 A_BUTTON_MASK = 0x01;
+constexpr Regval8 B_BUTTON_MASK = 0x02;
+constexpr Regval8 SELECT_BUTTON_MASK = 0x04;
+constexpr Regval8 START_BUTTON_MASK = 0x08;
+constexpr Regval8 ALL_BUTTON_MASK = 0x0F;
 
+constexpr Regval8 RIGHT_PAD_MASK = 0x10;
+constexpr Regval8 LEFT_PAD_MASK = 0x20;
+constexpr Regval8 UP_PAD_MASK = 0x40;
+constexpr Regval8 DOWN_PAD_MASK = 0x80;
+constexpr Regval8 ALL_PAD_MASK = 0xF0;
 
 class Memory{
     private:
-        static std::array<RegVal_8,UINT16_MAX+1> mem;
+        static std::array<Regval8,UINT16_MAX+1> mem;
         static bool ppuLock;
         static bool dmaLock;
+        static bool vramAltered;
+        static Regval8 joypadBuff;
         const Permission perm;
 
-        bool inRange(const RegVal_16 addr, const RegVal_16 low, const RegVal_16 hi) const;
-        bool checkPerm(const RegVal_16 addr, Access acc) const;
+        bool inRange(const Regval16 addr, const Regval16 low, const Regval16 hi) const;
+        bool checkPerm(const Regval16 addr, Access acc) const;
+        void prepJoypadRead(const Regval8 byte) const;
     public:
     Memory(Permission perm);
     /**
@@ -84,7 +108,7 @@ class Memory{
      * 
      * @return true if the write was successful, false if it wasn't
      */
-        bool write(const RegVal_16 addr, const RegVal_8 byte) const;
+        bool write(const Regval16 addr, const Regval8 byte) const;
     /**
      * @brief returns a reference to a specified address in memory.
      * 
@@ -92,7 +116,7 @@ class Memory{
      * 
      * @return byte at address
      */
-        RegVal_8 read(const RegVal_16 addr) const;
+        Regval8 read(const Regval16 addr) const;
     /**
      * @brief dumps n bytes from buf, starting from addr in memory
      * 
@@ -102,7 +126,7 @@ class Memory{
      * 
      * @return number of bytes written 
      */
-        RegVal_16 dump(const RegVal_16 addr, const RegVal_8* buf, const size_t n) const;
+        Regval16 dump(const Regval16 addr, const Regval8* buf, const size_t n) const;
     /**
      * @brief forbids all but HRAM accesses for the CPU. Only Memory instances with the DMA perm can do this.
      * 
@@ -126,6 +150,18 @@ class Memory{
      * 
      * @return true if lock is successful, false if it isn't.
      */
+        
+        void setJoypadBuff(Regval8 byte);
+        Regval8 getJoypadBuff();
+    /**
+     * @brief Gives caller a reference to a location in memory. Should only be used by modules to gain
+     * quick access to their respective I/O registers.
+     * 
+     * @return reference to requested memory location
+     */
+        Register getRegister(Regval16 addr);
         bool unlockVram();
+        bool vramChange();
+        void resetChange();
 };
 #endif

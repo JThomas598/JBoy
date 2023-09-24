@@ -23,7 +23,7 @@
 ;* Rev 2.6 - 09-Apr-16 : Added GBC OAM and cart defines (AntonioND)
 ;* Rev 2.7 - 19-Jan-19 : Added rPCMXX (ISSOtm)
 ;* Rev 2.8 - 03-Feb-19 : Added audio registers flags (Álvaro Cuesta)
-;* Rev 2.9 - 28-Feb-20 : Added utility rP1 constants
+;* Rev 2.9 - 28-Feb-20 : Added Util rP1 constants
 ;* Rev 3.0 - 27-Aug-20 : Register ordering, byte-based sizes, OAM additions, general cleanup (Blitter Object)
 ;* Rev 4.0 - 03-May-21 : Updated to use RGBDS 0.5.0 syntax, changed IEF_LCDC to IEF_STAT (Eievui)
 

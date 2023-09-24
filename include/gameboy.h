@@ -4,7 +4,9 @@
 #include "cpu.h"
 #include "ppu.h"
 #include "memory.h"
-
+#include "SDL2/SDL.h"
+#include "dma.h"
+#include "counters.h"
 constexpr uint32_t CYCLE_RATE = 4194304; //Hz
 
 typedef enum InstrState{
@@ -19,30 +21,37 @@ typedef enum InstrState{
 
 typedef struct GbState{
     uint8_t opcode;
-    RegVal_8 regs_8[8];
-    RegVal_16 regs_16[4];
+    Regval8 regs_8[8];
+    Regval16 regs_16[4];
 }GbState;
+
 
 class Gameboy{
     private:
         CPU cpu;
         PPU ppu;
+        DMA dma;
+        Counters counters;
+        Signal signal;
         Memory mem;
-        bool IME;
+        Regval8 joypadBuff;
         uint8_t opcode;
         uint8_t cb_op;
         InstrState state;
-        RegVal_8 imm_8;
-        RegVal_16 imm_16;
-        RegVal_8 msb;
-        RegVal_8 lsb;
-
+        uint cyclesLeft;
+        Regval8 imm_8;
+        Regval16 imm_16;
+        Regval8 msb;
+        Regval8 lsb;
+        bool IME;
+ 
         void printDebug(char* s);
         void limitCycleRate();
         void runFSM();
+        void handleEvent(SDL_Event* event);
         void executeCBOP();
         void printSerial();
-        void clearInterrupt(RegVal_8 mask);
+        void clearInterrupt(Regval8 mask);
         void handleInterrupt();
     public:
         void loadBootRom();
@@ -60,7 +69,7 @@ class Gameboy{
          * 
          * @return current address of program counter
          */
-        RegVal_16 emulateCycle();
+        Regval16 emulateCycle();
         /**
          * @brief Gives current state of emulator
          * 
@@ -71,5 +80,10 @@ class Gameboy{
             @brief Prints a summary of the current state of the system
         */
         void printStatus();
+
+        void setJoypad(Regval8 byte);
+        
+        Regval8 getJoypad();
+        Regval8 readMem(Regval16 addr); 
 };
 #endif

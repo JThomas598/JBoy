@@ -1,5 +1,8 @@
 #include "memory.h"
+#include "gameboy.h"
 #include "ppu.h"
+#include "lcd.h"
+#include "util.h"
 #include <stdexcept>
 #include <iostream>
 #include <chrono>
@@ -19,215 +22,326 @@
 
 /*
 TODO:
-1. Implement scrolling.
-2. Implement LCD control.
-3. Chop code up into subroutines.
-4. Use Renderer for hardware acceleration.
-5. Make a proper destructor for the SDL stuff.
-6. Use initializer properly for constructor.
-7. Implement switchable pallete (probably with lookup table)
+-Fix pixel drawing to accomodate fetcher
+-Get Background drawing done first
 */
 
-PPU::PPU() : mem(PPU_PERM)
+PPU::PPU() : 
+    mem(PPU_PERM), 
+    lcdcReg(mem.getRegister(LCDC_REG_ADDR)),
+    intFlagReg(mem.getRegister(IF_REG_ADDR)),
+    lyReg(mem.getRegister(LY_REG_ADDR)),
+    scxReg(mem.getRegister(SCX_REG_ADDR)),
+    scyReg(mem.getRegister(SCY_REG_ADDR)),
+    statReg(mem.getRegister(STAT_REG_ADDR))
 {
-    SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_HAPTIC | SDL_INIT_HAPTIC | SDL_INIT_EVENTS | SDL_INIT_NOPARACHUTE);
     window = SDL_CreateWindow("JK EMU", 
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        WIDTH,
-        HEIGHT,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
         SDL_WINDOW_ALLOW_HIGHDPI);
-    windowSurface = SDL_GetWindowSurface(window);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    mem.write(LCDC, (RegVal_8)0x91);
-    mem.write(STAT, (RegVal_8)0x81);
-    hCount = 0;
-    vCount = 0;
-    mapX = 0;
-    mapY = 0;
-    tileRowCount = 0;
+    windowSurface = SDL_GetWindowSurface(window);
+    frameTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
+    lcdcReg = 0x91;
+    statReg = 0x81;
     trashPixelCount = 0;
-    viewportTileX = 0;
-    viewportTileY = 0;
-    mem.write(SCX, 0);
-    mem.write(SCY, 0);
-    state = PIX_TRANS;
+    state = OAM_SEARCH;
+    cyclesLeft = CYCLES_PER_LINE;
+    numFrames = 0;
+    scanX = 0;
     lastFrameTime = std::chrono::high_resolution_clock::now();
+}
+
+PPU::~PPU(){
+    SDL_DestroyWindow(window);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyTexture(frameTexture);
 }
 
 
 void PPU::updateDisplay() {
-    const int targetFrameRate = 60;  // Target frame rate in frames per second
+    const double targetFrameRate = 59.7;  // Target frame rate in frames per second
     const std::chrono::duration<double> targetFrameDuration(1.0 / targetFrameRate);
     // Calculate time since the last frame
     std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = currentTime - lastFrameTime;
-    SDL_UpdateWindowSurface(window);
-    lastFrameTime = currentTime;
-    // Wait to draw next frame
+    Uint32* pixPtr;
+    SDL_LockTexture(frameTexture, NULL, (void**)&pixPtr, &windowSurface->pitch);
+    memcpy((void*)pixPtr, (void*)frameBuffer, sizeof(frameBuffer));
+    SDL_UnlockTexture(frameTexture);
+    SDL_RenderCopy(renderer, frameTexture, NULL, NULL);
+    SDL_RenderPresent(renderer);
     std::chrono::duration<double> sleepTime = targetFrameDuration - elapsed;
-    if (sleepTime > std::chrono::duration<double>(0)) {
-        std::this_thread::sleep_for(sleepTime);
-    }
-}
-
-Uint32 PPU::resolveColor(RegVal_8 val){
-    switch(val){
-        case 0:
-            return ARGB_WHITE; 
-        case 1:
-            return ARGB_LIGHT_GRAY;
-        case 2:
-            return ARGB_DARK_GRAY;
-        case 3:
-            return ARGB_BLACK;
-        default:
-            throw std::invalid_argument("[ERROR] PPU::resolveColor(): passed argument is not a valid color in the defined palette.");
-    }
-}
-
-void PPU::fetchTileRow(){
-    RegVal_16 tileDataStart;
-    RegVal_16 tileMapStart;
-    if(mem.read(LCDC) & BG_MAP_SEL){
-        tileMapStart = 0x9C00; 
-    }
-    else{
-        tileMapStart = 0x9800;
-    }
-    if(mem.read(LCDC) & BG_WIN_TILE_BLK_SEL){
-        tileDataStart = 0x8000; 
-    }
-    else{
-        tileDataStart = 0x9000;
-    }
-    uint8_t index = mem.read(tileMapStart + (mapY*TILE_MAP_ROW_SIZE) + mapX);
-    RegVal_16 tileRowAddr = tileDataStart + (index * TILE_SIZE) + (tileRowCount * 2);
-    const RegVal_8 lsbTileRow = mem.read(tileRowAddr);
-    const RegVal_8 msbTileRow = mem.read(tileRowAddr + 1);
-    RegVal_8 bit0;
-    RegVal_8 bit1;
-    for(int i = 7; i > 0; i--){
-        bit0 = (lsbTileRow >> i) & 0x01;
-        bit1 = (msbTileRow >> (i-1)) & 0x02;
-        fifo.push(resolveColor(bit1 | bit0));
-    }
-    //edge case
-    bit0 = lsbTileRow & 0x01;
-    bit1 = (msbTileRow << 1) & 0x02;
-    fifo.push(resolveColor(bit1 | bit0));
-}
-
-void PPU::nextTile(){
-    mapX++;
-    viewportTileX++;
-    if(mapX == TILE_MAP_ROW_SIZE){ //wrap viewport around tilemap
-        mapX = 0;
-    }
-    if(viewportTileX == SCREEN_TILE_WIDTH){
-        viewportTileX = 0;
-        tileRowCount = (tileRowCount + 1) % 8;
-        if(tileRowCount == 0){
-            mapY++;
-            viewportTileY++;
-            if(mapY == TILE_MAP_ROW_SIZE){
-                mapY = 0;
-            }
-            if(viewportTileY == SCREEN_TILE_HEIGHT){
-                viewportTileY = 0;
-            }
+    while (true){
+        currentTime = std::chrono::high_resolution_clock::now();
+        if((currentTime - lastFrameTime) > targetFrameDuration){
+            lastFrameTime = currentTime;
+            break;
         }
     }
 }
 
+uint32_t PPU::resolveColor(GBColor color){
+    //remember to add logic for determining pallete of pixel.
+    //probably with a struct for each pixel denoting whether
+    //its from a map or sprite and which pallete its using
+    switch(color){
+        case BLACK:
+            return ARGB_BLACK;
+        case DARK_GRAY:
+            return ARGB_DARK_GRAY;
+        case LIGHT_GRAY:
+            return ARGB_LIGHT_GRAY;
+        case WHITE:
+            return ARGB_WHITE;
+        default:
+            throw std::invalid_argument("PPU::resolveColor(): Invalid color palette index.");
+    }
+}
 
-void PPU::drawPixel(){
+void PPU::prepBackgroundLine(){
+    fetcher.resetCycles();
+    fetcher.setMode(MAP_FETCH);
+    fetcher.clearBgFifo(); 
+    Regval16 tileMapAddr = util::checkBit(lcdcReg, LCDC_BG_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
+    fetcher.setMapAddr(tileMapAddr);
+    Regval16 tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
+    fetcher.setTileBlockAddr(tileDataAddr);
+    fetcher.setMapX(scxReg / 8);
+    trashPixelCount = scxReg % 8;
+    fetcher.setMapY(((scyReg + lyReg) / 8) % 32);
+    fetcher.setTileRow((lyReg + scyReg) % 8);
+}
+
+void PPU::prepSpriteFetch(){
+    fetcher.resetCycles();
+    fetcher.clearSpriteFifo();
+    fetcher.setMode(SPRITE_FETCH);
+}
+
+void PPU::drawPixel(GBColor color){
     if(trashPixelCount == 0){
-        Uint32* pixPtr = (Uint32*)windowSurface->pixels;
-        pixPtr[(vCount * WIDTH) + hCount] = fifo.front();
-        hCount++;
+        frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = resolveColor(color);
     }
     else
         trashPixelCount--;
-    fifo.pop();
 }
 
-void PPU::clearHangingPixels(){
-    RegVal_8 scx = mem.read(SCX);
-    if((scx % 8) != 0){
-        for(int i = 0; i < (8 - (scx % 8)); i++){
-            fifo.pop(); 
+/*
+FETCHER INTERFACE
+-fetchMapRow()
+-fetchSpriteRow()
+-popPixel()
+-clearMapFifo()
+-clearSpriteFifo()
+
+FETCHER PSEUDO FOR FETCHING A BG/WIN TILE ROW:
+
+bgMapAddr = figure out bg map addr from lcdc;
+winMapAddr = figure out win map addr from lcdc;
+if(at or past winY AND at or past winX AND window is enabled):
+	activeMapAddr = winMapAddr;
+	winMap.xCoord = x; //x is the fetchers hor offset from first win tile drawn on line
+	winMap.yCoord = y; //y is fetchers vert offset from first win tile drawn on frame
+	tileRow = (lyReg - winY) % 8
+else:
+	activeMapAddr = bgMap;
+	winMap.xCoord = ((mem.read(SCX) / 8) + x) & 0x1F;
+	winMap.yCoord = (mem.read(SCY) + lyReg) & 0xFF;   //y is fetcher's y position on the tile map
+
+STATE MACHINE PSEUDO:
+
+initialization:
+    mode = OAM_SEARCH;
+    modeCyclesLeft = 20;
+    lineCyclesLeft = CYCLES_PER_LINE; //456 dots
+
+switch(mode){
+    case OAM_SEARCH:
+        if(!cyclesLeft){
+            oam.searchLine(n)
         }
-    }
+        cyclesLeft--;
+    case DRAW_BG:
+        if(at or past winY AND at or past winX AND window is enabled){
+            fetcher.resetCycles();
+            fetcher.clearBgFifo();
+            fetcher.setMapAddr(figure out win map addr from lcdc);
+            fetcher.setTileBlock(figure out window tile data location from lcdc);
+            fetcher.setMapX((scanX - winX) / 8);
+            fetcher.setMapY((lyReg - mem.read(winY)) / 8);
+            fetcher.setTileRow((lyReg - winY) % 8)
+            mode = DRAW_WIN
+        }
+        else if(scanX is at sprite's x coord AND objects are enabled){
+            fetcher.resetCycles();
+            fetcher.setMode(SPRITE);
+            Object obj = oam.popObj();
+            fetcher.setObj(obj); //find better name later
+            mode = DRAW_OBJ;
+        }
+        else{
+            if(fetcher.getBgFifoSize() > 8){
+                GbColor color = fetcher.popPixel();
+                drawPixel(color);
+                scanX++;
+                if(scanX == SCREEN_WIDTH){
+                    mode = H_BLANK;
+                }
+            }
+            fetcher.emulateFetchCycle();
+        }
+        lineCyclesLeft--;
+        break;
+    case DRAW_WIN:
+        if(scanX is at sprite's x coord AND objects are enabled){
+            fetcher.resetCycles();
+            fetcher.setMode(SPRITE);
+            Object obj = oam.popObj();
+            fetcher.setObj(obj); //find better name later
+            mode = DRAW_OBJ;
+        }
+        else{
+            if(fetcher.getBgFifoSize() > 8){
+                GbColor color = fetcher.popPixel();
+                drawPixel(color);
+                scanX++;
+                if(scanX == SCREEN_WIDTH){
+                    mode = H_BLANK;
+                }
+            }
+            fetcher.emulateFetchCycle();
+        }
+        lineCyclesLeft--;
+    case DRAW_OBJ:
+        //later
+    case H_BLANK:
+        if(!lineCyclesLeft){
+            if(pixY == HEIGHT - 1){
+                mode = V_BLANK;
+                modeCyclesLeft = 10 * CYCLES_PER_LINE;
+                break;
+            }
+            fetcher.resetCycles();
+            fetcher.setMode(MAP); 
+            fetcher.setMapAddr(figure out bg map addr from lcdc);
+            fetcher.setTileBlock(figure out bg tile data location from lcdc);
+            fetcher.setMapX(SCX / 8);
+            fetcher.setMapY(SCY / 8);
+            fetcher.setTileRow(SCY % 8);
+            mode = DRAW_BG;
+            pixY++;
+            scanX = 0;
+            break;
+        }
+        lineCyclesLeft--;
+        break;
+    case V_BLANK:
+        if(!lineCyclesLeft){
+            fetcher.resetCycles();
+            fetcher.resetCycles();
+            fetcher.setMode(MAP); 
+            fetcher.setMapAddr(figure out bg map addr from lcdc);
+            fetcher.setTileBlock(figure out bg tile data location from lcdc);
+            fetcher.setMapX(SCX / 8);
+            fetcher.setMapY(SCY / 8);
+            fetcher.setTileRow(SCY % 8);
+            mode = DRAW_BG;
+            pixY = 0;
+            scanX = 0;
+        }
+        lineCyclesLeft--;
+        break;
+}
+*/
+void PPU::printStatus(){
+    std::cout << "curr pixel X pos: " << (int)scanX << std::endl;
+    std::cout << "line number: " << (int)lyReg << std::endl; 
+    std::cout << "frame number: " << (int)numFrames << std::endl;
+    std::cout << "tetris timer: " << (int)mem.read(0xffa6) << std::endl;
 }
 
 void PPU::runFSM(){
     switch(state){
-        case PIX_TRANS:
-            if(hCount == WIDTH){
-                mem.write(STAT, 0x00);
-                clearHangingPixels();
-                std::queue<Uint32> empty;
-                std::swap(fifo, empty);
-                state = H_BLANK;
+        case OAM_SEARCH:
+            if(cyclesLeft == CYCLES_PER_LINE - OAM_CYCLES){
+                oam.searchLine(lyReg);
+                state = DRAW_BG_WIN;
                 break;
             }
-            if(fifo.size() <= 8){
-                fetchTileRow();
-                nextTile();
+            cyclesLeft--;
+        break;
+        case DRAW_BG_WIN:
+            if(fetcher.getBgFifoSize() > BG_FIFO_MIN){
+                if(scanX + 8 == oam.getMinX() && util::checkBit(lcdcReg, LCDC_OBJ_EN)){
+                    fetcher.beginSpriteFetch(oam.popObj());
+                    prepSpriteFetch();
+                    state = FETCH_OBJ;
+                    break;
+                }
+                GBColor color = fetcher.popPixel();
+                drawPixel(color);
+                if(++scanX == SCREEN_WIDTH){
+                    state = H_BLANK;
+                    oam.clearQueue();
+                    break;
+                }
             }
-            else{
-                drawPixel();
+            cyclesLeft--;
+            fetcher.emulateFetchCycle(); 
+            break;
+        case FETCH_OBJ:
+            if(fetcher.getSpriteFifoSize()){
+                state = DRAW_BG_WIN;
+                break; 
             }
+            fetcher.emulateFetchCycle(); 
+            cyclesLeft--;
             break;
         case H_BLANK:
-            if(hCount == TRUE_WIDTH){
-                hCount = 0;
-                mem.write(LY, ++vCount);
-                if(vCount == HEIGHT){
-                    mem.write(STAT, 0x01);
-                    mem.write(IF, mem.read(IF) | VBLANK_INT);
+            if(!cyclesLeft){
+                ++lyReg;
+                if(lyReg == SCREEN_HEIGHT){
+                    updateDisplay();
+                    numFrames++;
                     state = V_BLANK;
-                    SDL_UpdateWindowSurface(window);
-                    //updateDisplay();
+                    intFlagReg |= VBLANK_INT;
+                    cyclesLeft = CYCLES_PER_LINE * 10;
                     break;
                 }
-                mapX = mem.read(SCX) / 8;
-                viewportTileX = 0;
-                trashPixelCount = mem.read(SCX) % 8;
-                mem.write(STAT, 0x03);
-                state = PIX_TRANS;
+                prepBackgroundLine();
+                scanX = 0;
+                state = OAM_SEARCH;
+                cyclesLeft = CYCLES_PER_LINE;
                 break;
             }
-            hCount++;
+            cyclesLeft--;
             break;
         case V_BLANK:
-            if(hCount == TRUE_WIDTH){
-                hCount = 0;
-                mem.write(LY, ++vCount);
-                if(vCount == TRUE_HEIGHT){
-                    vCount = 0;
-                    mem.write(STAT, 0x03);
-                    state = PIX_TRANS;
-                    mapX = mem.read(SCX) / 8;
-                    mapY = mem.read(SCY) / 8;
-                    std::queue<Uint32> empty;
-                    std::swap(fifo, empty);
-                    viewportTileX = 0;
-                    viewportTileY = 0;
-                    trashPixelCount = mem.read(SCX) % 8;
-                    tileRowCount = mem.read(SCY) % 8;
-                    break;
-                }
+            if(!cyclesLeft){
+                state = OAM_SEARCH;
+                signal.raiseSignal(FRAME_SIGNAL);
+                prepBackgroundLine();
+                cyclesLeft = CYCLES_PER_LINE;
+                mem.write(lyReg, 0);
+                scanX = 0;
+                lyReg = 0; 
                 break;
             }
-            hCount++;
+            cyclesLeft--;
+            if(cyclesLeft % CYCLES_PER_LINE == 0){
+                ++lyReg;
+            }
             break;
         default:
-            break;
+            break; 
     }
 }
 
 void PPU::emulateCycle(){
-    runFSM(); 
+    if(util::checkBit(lcdcReg, LCDC_LCD_EN)){
+        runFSM(); 
+    }
 }

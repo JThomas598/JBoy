@@ -1,76 +1,68 @@
+#ifndef PPU_H
+#define PPU_H
 #include "memory.h"
 #include "SDL2/SDL.h"
+#include "fetcher.h"
+#include "lcd.h"
+#include "signal.h"
 #include <queue>
 #include <chrono>
 #include <thread>
 
 //Rendering Constants
-constexpr int WIDTH = 160, HEIGHT = 144;
-constexpr int TRUE_WIDTH = 210, TRUE_HEIGHT = 154;
-constexpr int TILE_SIZE = 16;
-constexpr int TILE_MAP_ROW_SIZE = 32;
-constexpr int SCREEN_TILE_WIDTH = 20;
-constexpr int SCREEN_TILE_HEIGHT = 18;
-
-//Gameboy Color Palette
-constexpr Uint32 ARGB_BLACK = 0xFF000000;
-constexpr Uint32 ARGB_DARK_GRAY = 0xFF545454;
-constexpr Uint32 ARGB_LIGHT_GRAY = 0xFFA9A9A9;
-constexpr Uint32 ARGB_WHITE = 0xFFFFFFFF;
-
-
-typedef enum Color{
-    BLACK,
-    DARK_GRAY,
-    LIGHT_GRAY,
-    WHITE,
-}Color;
 
 typedef enum State{
-    PIX_TRANS,
+    DMA_TRANS,
+    OAM_SEARCH,
+    DRAW_BG_WIN,
+    FETCH_OBJ,
+    DRAW_OBJ,
     H_BLANK,
     V_BLANK
 }State;
 
-//LCDC MASKS
-constexpr RegVal_8 LCD_ON = 0x80;
-constexpr RegVal_8 WIN_MAP_SEL = 0x40;
-constexpr RegVal_8 WIN_ENABLE = 0x20;
-constexpr RegVal_8 BG_WIN_TILE_BLK_SEL = 0x10;
-constexpr RegVal_8 BG_MAP_SEL = 0x08;
-constexpr RegVal_8 OBJ_SIZE = 0x04;
-constexpr RegVal_8 OBJ_EN = 0x02;
-constexpr RegVal_8 BG_WIN_PRIORITY = 0x01;
+
+constexpr int CYCLES_PER_LINE = 456;
+constexpr int OAM_CYCLES = 20;
+
 
 class PPU{
     private:
-        std::queue<Uint32> fifo;
-        SDL_Window* window;
+        Signal signal;
         Memory mem;
-        RegVal_8 hCount;
-        RegVal_8 vCount;
-        RegVal_8 mapX;
-        RegVal_8 mapY;
-        RegVal_8 tileRowCount;
-        RegVal_8 trashPixelCount;
-        RegVal_8 viewportTileX;
-        RegVal_8 viewportTileY;
+        Fetcher fetcher;
+        OAM oam;
         State state;
+        Register lcdcReg;
+        Register intFlagReg;
+        Register lyReg;
+        Register scxReg;
+        Register scyReg;
+        Register statReg;
+        Regval8 trashPixelCount;
+        Regval8 scanX;
+        int cyclesLeft;
+        int numFrames; 
+        SDL_Window* window;
         SDL_Surface* windowSurface;
         SDL_Renderer* renderer; 
+        SDL_Texture* frameTexture;
+        Uint32 frameBuffer[SCREEN_WIDTH * SCREEN_HEIGHT];
         std::chrono::high_resolution_clock::time_point lastFrameTime;
 
-        Uint32 resolveColor(RegVal_8 val);
         void runFSM();
-        void fetchTileRow();
-        void nextTile();
         void updateDisplay();
-        void drawPixel();
-        void clearHangingPixels();
+        uint32_t resolveColor(GBColor color);
+        void prepBackgroundLine();
+        void prepSpriteFetch();
+        void prepWindowLine();
+        void drawPixel(GBColor color);
     public:
         PPU();
-        //~PPU();
+        ~PPU();
 
         void emulateCycle();
+        void printStatus();
         
 };
+#endif

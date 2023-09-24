@@ -709,7 +709,7 @@ typedef double		GLclampd;	/* double precision float in [0,1] */
 #define GL_R					0x2002
 #define GL_Q					0x2003
 
-/* Utility */
+/* Util */
 #define GL_VENDOR				0x1F00
 #define GL_RENDERER				0x1F01
 #define GL_VERSION				0x1F02

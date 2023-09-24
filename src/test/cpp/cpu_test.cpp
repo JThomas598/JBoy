@@ -20,9 +20,9 @@ int main(int argc, char** argv){
     Memory mem;
     Memory& rmem = mem;
     CPU cpu(rmem);
-    RegVal_8 val_8;
-    RegVal_16 val_16;
-    RegVal_16 addr;
+    Regval8 val_8;
+    Regval16 val_16;
+    Regval16 addr;
     //8 bit loads
     cout << "===8-bit Loads===" << endl;
     cout << "LD r,n Test" << endl;
@@ -209,8 +209,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     cpu.loadAIndirectDec();
     if(cpu.getReg(A) != mem.read(addr) ||
-        cpu.getReg(H) != (RegVal_8)0xBF||
-        cpu.getReg(L) != (RegVal_8)0xFF){
+        cpu.getReg(H) != (Regval8)0xBF||
+        cpu.getReg(L) != (Regval8)0xFF){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -228,8 +228,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     cpu.loadIndirectADec();
     if(cpu.getReg(A) != mem.read(addr) ||
-        cpu.getReg(H) != (RegVal_8)0xBF||
-        cpu.getReg(L) != (RegVal_8)0xFF){
+        cpu.getReg(H) != (Regval8)0xBF||
+        cpu.getReg(L) != (Regval8)0xFF){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -246,8 +246,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     cpu.loadAIndirectInc();
     if(cpu.getReg(A) != mem.read(addr) ||
-        cpu.getReg(H) != (RegVal_8)0xC0||
-        cpu.getReg(L) != (RegVal_8)0x01){
+        cpu.getReg(H) != (Regval8)0xC0||
+        cpu.getReg(L) != (Regval8)0x01){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -265,8 +265,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     cpu.loadIndirectAInc();
     if(cpu.getReg(A) != mem.read(addr) ||
-        cpu.getReg(H) != (RegVal_8)0xC0||
-        cpu.getReg(L) != (RegVal_8)0x01){
+        cpu.getReg(H) != (Regval8)0xC0||
+        cpu.getReg(L) != (Regval8)0x01){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -280,8 +280,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(B, val_8);
     cpu.loadRegImm(C, val_8);
     cpu.loadRegPairImm(B,C,val_16);
-    if(cpu.getReg(B) != (RegVal_8)0xAB &&
-        cpu.getReg(C) != (RegVal_8)0xCD){
+    if(cpu.getReg(B) != (Regval8)0xAB &&
+        cpu.getReg(C) != (Regval8)0xCD){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -291,8 +291,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(D, val_8);
     cpu.loadRegImm(E, val_8);
     cpu.loadRegPairImm(D,E,val_16);
-    if(cpu.getReg(D) != (RegVal_8)0xAB &&
-        cpu.getReg(E) != (RegVal_8)0xCD){
+    if(cpu.getReg(D) != (Regval8)0xAB &&
+        cpu.getReg(E) != (Regval8)0xCD){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -302,8 +302,8 @@ int main(int argc, char** argv){
     cpu.loadRegImm(H, val_8);
     cpu.loadRegImm(L, val_8);
     cpu.loadRegPairImm(H,L,val_16);
-    if(cpu.getReg(H) != (RegVal_8)0xAB &&
-        cpu.getReg(L) != (RegVal_8)0xCD){
+    if(cpu.getReg(H) != (Regval8)0xAB &&
+        cpu.getReg(L) != (Regval8)0xCD){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -324,7 +324,7 @@ int main(int argc, char** argv){
     cpu.loadRegImm(H, val_8);
     cpu.loadRegImm(L, val_8);
     cpu.loadSPHL();
-    if(cpu.getReg(SP) != (RegVal_16)0xF0F0){
+    if(cpu.getReg(SP) != (Regval16)0xF0F0){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -351,7 +351,7 @@ int main(int argc, char** argv){
     cpu.push(H,L);
     cpu.push(B,C);
     cpu.push(H,L);
-    if(cpu.getReg(SP) != (RegVal_16)0xFFFE - 10){
+    if(cpu.getReg(SP) != (Regval16)0xFFFE - 10){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -361,11 +361,11 @@ int main(int argc, char** argv){
     cpu.pop(B,C);
     cpu.pop(H,L);
     cpu.pop(D,E);
-    if(cpu.getReg(SP) != (RegVal_16)0xFFFE - 4 ||
-        cpu.getReg(B) != (RegVal_8)0x34 ||
-        cpu.getReg(C) != (RegVal_8)0x56 ||
-        cpu.getReg(H) != (RegVal_8)0xAB ||
-        cpu.getReg(L) != (RegVal_8)0xCD){
+    if(cpu.getReg(SP) != (Regval16)0xFFFE - 4 ||
+        cpu.getReg(B) != (Regval8)0x34 ||
+        cpu.getReg(C) != (Regval8)0x56 ||
+        cpu.getReg(H) != (Regval8)0xAB ||
+        cpu.getReg(L) != (Regval8)0xCD){
         colorPrint(RED, "FAILURE");
     }
     else{
@@ -388,7 +388,7 @@ int main(int argc, char** argv){
     val_8 = 0x06;
     cpu.loadRegImm(B, val_8);
     cpu.addReg(B);
-    if(cpu.getReg(A) != (RegVal_8) 11 ||
+    if(cpu.getReg(A) != (Regval8) 11 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -404,7 +404,7 @@ int main(int argc, char** argv){
     val_8 = 0x01;
     cpu.loadRegImm(C, val_8);
     cpu.addReg(C);
-    if(cpu.getReg(A) != (RegVal_8) 0x10 ||
+    if(cpu.getReg(A) != (Regval8) 0x10 ||
         cpu.getReg(F) & CARRY_FLAG ||
         !(cpu.getReg(F) & HALF_CARRY_FLAG) ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -420,7 +420,7 @@ int main(int argc, char** argv){
     val_8 = 0x01;
     cpu.loadRegImm(D, val_8);
     cpu.addReg(D);
-    if(cpu.getReg(A) != (RegVal_8) 0x00 ||
+    if(cpu.getReg(A) != (Regval8) 0x00 ||
         !(cpu.getReg(F) & CARRY_FLAG) ||
         !(cpu.getReg(F) & HALF_CARRY_FLAG) ||
         !(cpu.getReg(F) & ZERO_FLAG) ||
@@ -436,7 +436,7 @@ int main(int argc, char** argv){
     val_8 = 0x01;
     cpu.loadRegImm(E, val_8);
     cpu.addReg(E);
-    if(cpu.getReg(A) != (RegVal_8) 0x02 ||
+    if(cpu.getReg(A) != (Regval8) 0x02 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -452,7 +452,7 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     val_8 = 0x06;
     cpu.addImm(val_8);
-    if(cpu.getReg(A) != (RegVal_8) 11 ||
+    if(cpu.getReg(A) != (Regval8) 11 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -467,7 +467,7 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     val_8 = 0x01;
     cpu.addImm(val_8);
-    if(cpu.getReg(A) != (RegVal_8) 0x10 ||
+    if(cpu.getReg(A) != (Regval8) 0x10 ||
         cpu.getReg(F) & CARRY_FLAG ||
         !(cpu.getReg(F) & HALF_CARRY_FLAG) ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -482,7 +482,7 @@ int main(int argc, char** argv){
     cpu.loadRegImm(A, val_8);
     val_8 = 0x01;
     cpu.addImm(val_8);
-    if(cpu.getReg(A) != (RegVal_8) 0x00 ||
+    if(cpu.getReg(A) != (Regval8) 0x00 ||
         !(cpu.getReg(F) & CARRY_FLAG) ||
         !(cpu.getReg(F) & HALF_CARRY_FLAG) ||
         !(cpu.getReg(F) & ZERO_FLAG) ||
@@ -498,7 +498,7 @@ int main(int argc, char** argv){
     val_8 = 0x01;
     cpu.loadRegImm(E, val_8);
     cpu.addReg(E);
-    if(cpu.getReg(A) != (RegVal_8) 0x02 ||
+    if(cpu.getReg(A) != (Regval8) 0x02 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -521,7 +521,7 @@ int main(int argc, char** argv){
     val_8 = 0x1B;
     cpu.loadRegImm(L, val_8);
     cpu.addIndirect();
-    if(cpu.getReg(A) != (RegVal_8) 0x22 ||
+    if(cpu.getReg(A) != (Regval8) 0x22 ||
         cpu.getReg(F) & CARRY_FLAG ||
         !(cpu.getReg(F) & HALF_CARRY_FLAG) ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -544,7 +544,7 @@ int main(int argc, char** argv){
     val_8 = 0x23;
     cpu.loadRegImm(L, val_8);
     cpu.addIndirect();
-    if(cpu.getReg(A) != (RegVal_8) 0x00 ||
+    if(cpu.getReg(A) != (Regval8) 0x00 ||
         !(cpu.getReg(F) & CARRY_FLAG) ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         !(cpu.getReg(F) & ZERO_FLAG) ||
@@ -566,7 +566,7 @@ int main(int argc, char** argv){
     val_8 = 0x34;
     cpu.loadRegImm(L, val_8);
     cpu.addIndirect();
-    if(cpu.getReg(A) != (RegVal_8) 0x1 ||
+    if(cpu.getReg(A) != (Regval8) 0x1 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -585,7 +585,7 @@ int main(int argc, char** argv){
     val_8 = 0x01;
     cpu.loadRegImm(B, val_8);
     cpu.addRegCarry(B);
-    if(cpu.getReg(A) != (RegVal_8) 0x02 ||
+    if(cpu.getReg(A) != (Regval8) 0x02 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -603,7 +603,7 @@ int main(int argc, char** argv){
     val_8 = 0x01;
     cpu.loadRegImm(B, val_8);
     cpu.addRegCarry(B);
-    if(cpu.getReg(A) != (RegVal_8) 0x10 ||
+    if(cpu.getReg(A) != (Regval8) 0x10 ||
         cpu.getReg(F) & CARRY_FLAG ||
         !(cpu.getReg(F) & HALF_CARRY_FLAG) ||
         cpu.getReg(F) & ZERO_FLAG ||
@@ -621,7 +621,7 @@ int main(int argc, char** argv){
     val_8 = 0xFF;
     cpu.loadRegImm(B, val_8);
     cpu.addRegCarry(B);
-    if(cpu.getReg(A) != (RegVal_8) 0x00 ||
+    if(cpu.getReg(A) != (Regval8) 0x00 ||
         !(cpu.getReg(F) & CARRY_FLAG) ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         !(cpu.getReg(F) & ZERO_FLAG) ||
@@ -639,7 +639,7 @@ int main(int argc, char** argv){
     val_8 = 0x00;
     cpu.loadRegImm(B, val_8);
     cpu.addRegCarry(B);
-    if(cpu.getReg(A) != (RegVal_8) 0x01 ||
+    if(cpu.getReg(A) != (Regval8) 0x01 ||
         cpu.getReg(F) & CARRY_FLAG ||
         cpu.getReg(F) & HALF_CARRY_FLAG ||
         cpu.getReg(F) & ZERO_FLAG ||

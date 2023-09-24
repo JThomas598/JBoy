@@ -53,21 +53,21 @@ typedef enum RegIndex_16{
 
 class CPU{
     private:
-        RegVal_8 regs_8[8];
-        RegVal_16 regs_16[4];
+        Regval8 regs_8[8];
+        Regval16 regs_16[4];
         Memory mem;
 
-        bool fullCarry(RegVal_8 val1, RegVal_8 val2, Operation op, bool withCarry);
-        bool halfCarry(RegVal_8 prev, RegVal_8 curr, Operation op, bool withCarry);
-        RegVal_16 getRegPair(RegIndex_8 msr, RegIndex_8 lsr);
-        void setRegPair(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 val);
+        bool fullCarry(Regval8 val1, Regval8 val2, Operation op, bool withCarry);
+        bool halfCarry(Regval8 prev, Regval8 curr, Operation op, bool withCarry);
+        Regval16 getRegPair(RegIndex_8 msr, RegIndex_8 lsr);
+        void setRegPair(RegIndex_8 msr, RegIndex_8 lsr, Regval16 val);
         void addRegRegCarry(RegIndex_8 reg1, RegIndex_8 reg2);
         void pushPC();
         void pushPCInc();
         void popPC();
         
     public:
-        RegVal_16 callInt(RegVal_16 addr);
+        Regval16 callInt(Regval16 addr);
         /**
             @brief Constructor
 
@@ -81,13 +81,13 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 addReg(RegIndex_8 reg);
+        Regval8 addReg(RegIndex_8 reg);
         /**
             @brief  Adds the contents of the address in HL to reg A.
 
             @return New accumulator value.
         */
-        RegVal_8 addIndirect();
+        Regval8 addIndirect();
         /**
             @brief  Adds an unsigned immediate to reg A.
 
@@ -95,7 +95,7 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 addImm(RegVal_8 imm);
+        Regval8 addImm(Regval8 imm);
         /**
             @brief  Adds a GP register's value and the carry flag to reg A.
 
@@ -103,14 +103,14 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 addRegCarry(RegIndex_8 reg);
+        Regval8 addRegCarry(RegIndex_8 reg);
         /**
             @brief  Adds the contents of the address in HL,
             along with the carry flag, to reg A.
 
             @return New accumulator value.
         */
-        RegVal_8 addIndirectCarry();
+        Regval8 addIndirectCarry();
         /**
             @brief  Adds an unsigned immediate and the carry flag to reg A.
 
@@ -118,7 +118,7 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 addImmCarry(RegVal_8 imm);
+        Regval8 addImmCarry(Regval8 imm);
         /**
             @brief  Subtracts a GP register's value from reg A.
 
@@ -126,13 +126,13 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 subReg(RegIndex_8 reg);
+        Regval8 subReg(RegIndex_8 reg);
         /**
             @brief  Subtracts the contents of the address in HL from reg A.
 
             @return New accumulator value.
         */
-        RegVal_8 subIndirect();
+        Regval8 subIndirect();
         /**
             @brief  Subtracts an unsigned immediate from reg A.
 
@@ -140,7 +140,7 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 subImm(RegVal_8 imm);
+        Regval8 subImm(Regval8 imm);
         /**
             @brief  Subtracts a GP register's value and the carry flag to reg A.
 
@@ -148,14 +148,14 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 subRegCarry(RegIndex_8 reg);
+        Regval8 subRegCarry(RegIndex_8 reg);
         /**
             @brief  Subtracts the contents of the address in HL,
             along with the carry flag, from reg A.
 
             @return New accumulator value.
         */
-        RegVal_8 subIndirectCarry();
+        Regval8 subIndirectCarry();
         /**
             @brief  Subtracts an unsigned immediate and the carry flag from reg A.
 
@@ -163,7 +163,7 @@ class CPU{
 
             @return New accumulator value.
         */
-        RegVal_8 subImmCarry(RegVal_8 imm);
+        Regval8 subImmCarry(Regval8 imm);
         /**
             @brief Subtracts a GP register from reg A (without modifying it) and sets flags
             accordingly.
@@ -172,14 +172,14 @@ class CPU{
 
             @return Flag register state.
         */
-       RegVal_8 compareReg(RegIndex_8 reg);
+       Regval8 compareReg(RegIndex_8 reg);
         /**
             @brief Subtracts the contents of the address in HL from reg A 
             (without modifying it) and sets flags accordingly.
 
             @return Flag register state
         */
-       RegVal_8 compareIndirect();
+       Regval8 compareIndirect();
         /**
             @brief Subtracts an immediate from reg A (without modifying it) and sets flags accordingly.
 
@@ -187,7 +187,7 @@ class CPU{
 
             @return Flag register state
         */
-       RegVal_8 compareImm(RegVal_8 imm);
+       Regval8 compareImm(Regval8 imm);
         /**
             @brief Increments a GP register.
 
@@ -195,13 +195,13 @@ class CPU{
 
             @return New register value.
         */
-       RegVal_8 incReg(RegIndex_8 reg);
+       Regval8 incReg(RegIndex_8 reg);
         /**
             @brief Increments the contents of the address in HL.
 
             @return New data value.
         */
-       RegVal_8 incIndirect();
+       Regval8 incIndirect();
         /**
             @brief Decrements a GP register.
 
@@ -209,13 +209,13 @@ class CPU{
 
             @return New register value.
         */
-       RegVal_8 decReg(RegIndex_8 reg);
+       Regval8 decReg(RegIndex_8 reg);
         /**
             @brief Decrements the contents of the address in HL.
 
             @return New data value.
         */
-       RegVal_8 decIndirect();
+       Regval8 decIndirect();
         /**
             @brief Perform bitwise AND on reg A with GP register.
 
@@ -223,13 +223,13 @@ class CPU{
 
             @return New accumulator value.
         */
-       RegVal_8 andReg(RegIndex_8 reg);
+       Regval8 andReg(RegIndex_8 reg);
         /**
             @brief Perform bitwise AND on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
-       RegVal_8 andIndirect();
+       Regval8 andIndirect();
         /**
             @brief Perform bitwise AND on reg A with immediate.
 
@@ -237,7 +237,7 @@ class CPU{
 
             @return New accumulator value.
         */
-       RegVal_8 andImm(RegVal_8 imm);
+       Regval8 andImm(Regval8 imm);
         /**
             @brief Perform bitwise OR on reg A with GP register.
 
@@ -245,13 +245,13 @@ class CPU{
 
             @return New accumulator value.
         */
-       RegVal_8 orReg(RegIndex_8 reg);
+       Regval8 orReg(RegIndex_8 reg);
         /**
             @brief Perform bitwise OR on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
-       RegVal_8 orIndirect();
+       Regval8 orIndirect();
         /**
             @brief Perform bitwise OR on reg A with immediate.
 
@@ -259,7 +259,7 @@ class CPU{
 
             @return New accumulator value.
         */
-       RegVal_8 orImm(RegVal_8 imm);
+       Regval8 orImm(Regval8 imm);
         /**
             @brief Perform bitwise XOR on reg A with GP register.
 
@@ -267,13 +267,13 @@ class CPU{
 
             @return New accumulator value.
         */
-       RegVal_8 xorReg(RegIndex_8 reg);
+       Regval8 xorReg(RegIndex_8 reg);
         /**
             @brief Perform bitwise XOR on reg A with memory location in HL register pair.
 
             @return New accumulator value.
         */
-       RegVal_8 xorIndirect();
+       Regval8 xorIndirect();
         /**
             @brief Perform bitwise XOR on reg A with immediate.
 
@@ -281,7 +281,7 @@ class CPU{
 
             @return New accumulator value.
         */
-       RegVal_8 xorImm(RegVal_8 imm);
+       Regval8 xorImm(Regval8 imm);
         /**
             @brief Perform bitwise XOR on reg A with memory location in HL register pair.
 
@@ -292,25 +292,25 @@ class CPU{
 
             @return New flag value.
         */
-       RegVal_8 compCarryFlag();
+       Regval8 compCarryFlag();
         /**
             @brief Sets the carry flag, and clears the N/H flags.
 
             @return New flag value.
         */
-       RegVal_8 setCarryFlag();
+       Regval8 setCarryFlag();
         /**
             @brief Figuring this one out...
 
             @return New accumulator value.
         */
-       RegVal_8 decimalAdjustAcc();
+       Regval8 decimalAdjustAcc();
         /**
             @brief Flips all the bits in reg A and sets the N/H flags.
 
             @return New accumulator value.
         */
-       RegVal_8 compAcc();
+       Regval8 compAcc();
        /**
         * @brief Load a GP register's value into another GP register.
         * 
@@ -320,7 +320,7 @@ class CPU{
         * 
         * @return Value in destination register
         */
-       RegVal_8 loadRegReg(RegIndex_8 dst, RegIndex_8 src);
+       Regval8 loadRegReg(RegIndex_8 dst, RegIndex_8 src);
        /**
         * @brief Loads an immediate value to a GP register.
         * 
@@ -330,7 +330,7 @@ class CPU{
         * 
         * @return Value in destination register
         */
-       RegVal_8 loadRegImm(RegIndex_8 reg, RegVal_8 imm);
+       Regval8 loadRegImm(RegIndex_8 reg, Regval8 imm);
        /**
         * @brief Load the contents of the address in HL to a GP register.
         * 
@@ -338,7 +338,7 @@ class CPU{
         * 
         * @return Value in destination register
         */
-       RegVal_8 loadRegIndirect(RegIndex_8 reg);
+       Regval8 loadRegIndirect(RegIndex_8 reg);
        /**
         * @brief Stores a GP register at the address in HL.
         * 
@@ -346,7 +346,7 @@ class CPU{
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadIndirectReg(RegIndex_8 reg);
+       Regval8 loadIndirectReg(RegIndex_8 reg);
        /**
         * @brief Stores an immediate value at the address in HL.
         * 
@@ -354,31 +354,31 @@ class CPU{
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadIndirectImm(RegVal_8 imm);
+       Regval8 loadIndirectImm(Regval8 imm);
        /**
         * @brief Loads the contents of the address in the BC register pair into A.
         * 
         * @return Value in register A
         */
-       RegVal_8 loadABC();
+       Regval8 loadABC();
        /**
         * @brief Loads the contents of the address in the DE register pair into A.
         * 
         * @return Value in register A
         */
-       RegVal_8 loadADE();
+       Regval8 loadADE();
        /**
         * @brief Loads register A to the address in the BC register pair
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadBCA();
+       Regval8 loadBCA();
        /**
         * @brief Loads register A to the address in the DE register pair
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadDEA();
+       Regval8 loadDEA();
        /**
         * @brief Loads the contents of the address specified by a 16 bit immediate into 
         * register A.
@@ -387,7 +387,7 @@ class CPU{
         * 
         * @return Value in register A
         */
-       RegVal_8 loadAImmDirect(RegVal_16 addr);
+       Regval8 loadAImmDirect(Regval16 addr);
        /**
         * @brief Loads register A to the address specified by a 16 bit immediate.
         * 
@@ -395,19 +395,19 @@ class CPU{
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadImmADirect(RegVal_16 imm);
+       Regval8 loadImmADirect(Regval16 imm);
        /**
         * @brief Loads the contents of the address 0xFF00 + C into A.
         * 
         * @return Value in register A
         */
-       RegVal_8 loadHighAC();
+       Regval8 loadHighAC();
        /**
         * @brief Loads register A into the address 0xFF00 + C.
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadHighCA();
+       Regval8 loadHighCA();
        /**
         * @brief Loads the contents of the address 0xFF00 + an immediate into A.
         * 
@@ -415,7 +415,7 @@ class CPU{
         *
         * @return Value in register A
         */
-       RegVal_8 loadHighAImm(RegVal_8 imm);
+       Regval8 loadHighAImm(Regval8 imm);
        /**
         * @brief Loads register A into the address 0xFF00 + an immediate.
         * 
@@ -423,33 +423,33 @@ class CPU{
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadHighImmA(RegVal_8 imm);
+       Regval8 loadHighImmA(Regval8 imm);
        /**
         * @brief Loads the contents of the address in HL to A and decrements
         * HL.
         *
         * @return Value in register A
         */
-       RegVal_8 loadAIndirectDec();
+       Regval8 loadAIndirectDec();
        /**
         * @brief Loads A into the address in HL and decrements HL
         *
         * @return Value in specified location
         */
-       RegVal_8 loadIndirectADec();
+       Regval8 loadIndirectADec();
        /**
         * @brief Loads the contents of the address in HL to A and increments
         * HL.
         * 
         * @return Value in specified location
         */
-       RegVal_8 loadAIndirectInc();
+       Regval8 loadAIndirectInc();
        /**
         * @brief Loads A into the address in HL and increments HL
         *
         * @return Value in specified location
         */
-       RegVal_8 loadIndirectAInc();
+       Regval8 loadIndirectAInc();
        /**
         * @brief Loads a 16 bit immediate to a GP register pair.
         * 
@@ -461,7 +461,7 @@ class CPU{
         * 
         * @return Value in register pair
         */
-       RegVal_16 loadRegPairImm(RegIndex_8 msr, RegIndex_8 lsr, RegVal_16 imm);
+       Regval16 loadRegPairImm(RegIndex_8 msr, RegIndex_8 lsr, Regval16 imm);
        /**
         * @brief Loads a 16 bit immediate to the SP register.
         * 
@@ -469,7 +469,7 @@ class CPU{
         * 
         * @return Value in SP
         */
-       RegVal_16 loadSPImm(RegVal_16 imm);
+       Regval16 loadSPImm(Regval16 imm);
        /**
         * @brief Loads stack pointer to the address specified by a 16-bit immediate.
         * 
@@ -477,13 +477,13 @@ class CPU{
         * 
         * @return Value in specified location
         */
-       RegVal_16 loadDirectSP(RegVal_16 addr);
+       Regval16 loadDirectSP(Regval16 addr);
        /**
         * @brief Loads stack pointer with HL.
         * 
         * @return Value in SP
         */
-       RegVal_16 loadSPHL();
+       Regval16 loadSPHL();
        /**
         * @brief Pushes 16-bit value in GP register pair to stack, also moving
         * stack pointer accordingly.
@@ -494,7 +494,7 @@ class CPU{
         * 
         * @return New stack pointer value
         */
-       RegVal_16 push(RegIndex_8 msr, RegIndex_8 lsr);
+       Regval16 push(RegIndex_8 msr, RegIndex_8 lsr);
        /**
         * @brief Pops a 16-bit value off the stack into GP register pair 
         * ,also moving the stack pointer accordingly.
@@ -505,7 +505,7 @@ class CPU{
         * 
         * @return New stack pointer value
         */
-       RegVal_16 pop(RegIndex_8 msr, RegIndex_8 lsr);
+       Regval16 pop(RegIndex_8 msr, RegIndex_8 lsr);
        /**
         * @brief Jump to an immediate address.
         * 
@@ -513,13 +513,13 @@ class CPU{
         * 
         * @return New PC value
         */
-       RegVal_16 jump(RegVal_16 addr);
+       Regval16 jump(Regval16 addr);
        /**
         * @brief Jump to address in HL.
         * 
         * @return New PC value
         */
-       RegVal_16 jumpHL();
+       Regval16 jumpHL();
        /**
         * @brief Jump imm addresses away from the current address. (imm is signed)
         * 
@@ -527,7 +527,7 @@ class CPU{
         * 
         * @return New PC value
         */
-       RegVal_16 jumpRel(int8_t imm);
+       Regval16 jumpRel(int8_t imm);
        /**
         * @brief Conditionally Jump imm addresses away from the current address. (imm is signed)
         * 
@@ -547,7 +547,7 @@ class CPU{
         * 
         * @return true if condition passed, false if it didn't
         */
-       bool jumpCond(RegVal_16 addr, Condition cond);
+       bool jumpCond(Regval16 addr, Condition cond);
        /**
         * @brief Call a function at an immediate address.
         * 
@@ -555,7 +555,7 @@ class CPU{
         * 
         * @return New PC value.
         */
-       RegVal_16 call(RegVal_16 addr);
+       Regval16 call(Regval16 addr);
        /**
         * @brief Conditionally call a function at an immediate address.
         * 
@@ -565,13 +565,13 @@ class CPU{
         * 
         * @return true if condition passed, false if it didn't
         */
-       bool callCond(RegVal_16 addr, Condition cond);
+       bool callCond(Regval16 addr, Condition cond);
        /**
         * @brief Return from function.
         * 
         * @return New PC value.
         */
-       RegVal_16 ret();
+       Regval16 ret();
        /**
         * @brief Conditionally return from function.
         * 
@@ -585,13 +585,13 @@ class CPU{
         * 
         * @return New PC value.
         */
-       RegVal_16 reti();
+       Regval16 reti();
        /**
         * @brief Call function at address specified by opcode
         * 
         * @return New PC value.
         */
-       RegVal_16 rst(RegVal_8 addr);
+       Regval16 rst(Regval8 addr);
        /**
         * @brief Perform a left circular rotation on a GP reg
         * 
@@ -599,13 +599,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 rlc(RegIndex_8 reg, bool cb);
+       Regval8 rlc(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a left circular rotation on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 rlcInd();
+       Regval8 rlcInd();
        /**
         * @brief Perform a right circular rotation on a GP reg
         * 
@@ -613,13 +613,13 @@ class CPU{
         * 
         * @return new value at location
         */
-       RegVal_8 rrc(RegIndex_8 reg, bool cb);
+       Regval8 rrc(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a right circular rotation on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 rrcInd();
+       Regval8 rrcInd();
        /**
         * @brief Perform a right rotation through the carry flag on a GP reg
         * 
@@ -627,13 +627,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 rr(RegIndex_8 reg, bool cb);
+       Regval8 rr(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a right rotation through the carry flag on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 rrInd();
+       Regval8 rrInd();
        /**
         * @brief Perform a left rotation through the carry flag on a GP reg
         * 
@@ -641,13 +641,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 rl(RegIndex_8 reg, bool cb);
+       Regval8 rl(RegIndex_8 reg, bool cb);
        /**
         * @brief Perform a left rotation through the carry flag on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 rlInd();
+       Regval8 rlInd();
        /**
         * @brief Perform a left arithmetic shift on GP reg 
         * 
@@ -655,13 +655,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 sla(RegIndex_8 reg);
+       Regval8 sla(RegIndex_8 reg);
        /**
         * @brief Perform a left arithmetic shift on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 slaInd();
+       Regval8 slaInd();
        /**
         * @brief Perform a right arithmetic shift on GP reg 
         * 
@@ -669,13 +669,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 sra(RegIndex_8 reg);
+       Regval8 sra(RegIndex_8 reg);
        /**
         * @brief Perform a right arithmetic shift on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 sraInd();
+       Regval8 sraInd();
        /**
         * @brief perform a right logical shift on a GP reg
         * 
@@ -683,13 +683,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 srl(RegIndex_8 reg);
+       Regval8 srl(RegIndex_8 reg);
        /**
         * @brief perform a right logical shift on memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 srlInd();
+       Regval8 srlInd();
        /**
         * @brief swap the upper and lower nibbles of a GP reg
         * 
@@ -697,13 +697,13 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 swap(RegIndex_8 reg);
+       Regval8 swap(RegIndex_8 reg);
        /**
         * @brief swap the upper and lower nibbles of memory location in HL
         * 
         * @return new value at location
         */
-       RegVal_8 swapInd();
+       Regval8 swapInd();
        /**
         * @brief test a bit in a GP reg and set zero flag if its cleared
         * 
@@ -713,7 +713,7 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 bit(RegIndex_8 reg, BitIndex index);
+       Regval8 bit(RegIndex_8 reg, BitIndex index);
        /**
         * @brief test a bit at memory location in HL and set zero flag if it's cleared
         * 
@@ -721,7 +721,7 @@ class CPU{
         * 
         * @return new value at location
         */
-       RegVal_8 bitInd(BitIndex index);
+       Regval8 bitInd(BitIndex index);
        /**
         * @brief clear a bit in a GP reg
         * 
@@ -731,7 +731,7 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 res(RegIndex_8 reg, BitIndex index);
+       Regval8 res(RegIndex_8 reg, BitIndex index);
        /**
         * @brief clear a bit at memory location in HL
         * 
@@ -739,7 +739,7 @@ class CPU{
         * 
         * @return new value at location
         */
-       RegVal_8 resInd(BitIndex index);
+       Regval8 resInd(BitIndex index);
        /**
         * @brief set a bit in a GP reg
         * 
@@ -749,7 +749,7 @@ class CPU{
         * 
         * @return new register value
         */
-       RegVal_8 set(RegIndex_8 reg, BitIndex index);
+       Regval8 set(RegIndex_8 reg, BitIndex index);
        /**
         * @brief set a bit in a memory location 
         * 
@@ -757,7 +757,7 @@ class CPU{
         * 
         * @return new value at location 
         */
-       RegVal_8 setInd(BitIndex index);
+       Regval8 setInd(BitIndex index);
        /**
         * @brief Halt system clock.
         */
@@ -779,49 +779,49 @@ class CPU{
         * 
         * @return New BC value
         */
-       RegVal_16 incBC();
+       Regval16 incBC();
        /**
         * @brief Increment DE.
         * 
         * @return New DE value
         */
-       RegVal_16 incDE();
+       Regval16 incDE();
        /**
         * @brief Increment HL.
         * 
         * @return New HL value
         */
-       RegVal_16 incHL();
+       Regval16 incHL();
        /**
         * @brief Increment Stack Pointer.
         * 
         * @return New stack pointer value
         */
-       RegVal_16 incSP();
+       Regval16 incSP();
        /**
         * @brief Decrement BC.
         * 
         * @return New BC value
         */
-       RegVal_16 decBC();
+       Regval16 decBC();
        /**
         * @brief Decrement DE.
         * 
         * @return New DE value
         */
-       RegVal_16 decDE();
+       Regval16 decDE();
        /**
         * @brief Decrement HL.
         * 
         * @return New HL value
         */
-       RegVal_16 decHL();
+       Regval16 decHL();
        /**
         * @brief Decrement Stack Pointer.
         * 
         * @return New stack pointer value
         */
-       RegVal_16 decSP();
+       Regval16 decSP();
        /**
         * @brief Add a GP register pair to HL
         * 
@@ -831,37 +831,37 @@ class CPU{
         * 
         * @return New HL value.
         */
-       RegVal_16 addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr);
+       Regval16 addHLRegPair(RegIndex_8 msr, RegIndex_8 lsr);
        /**
         * @brief Add SP to HL
         * 
         * @return New HL value.
         */
-       RegVal_16 addHLSP();
+       Regval16 addHLSP();
        /**
         * @brief load SP plus an offset to HL
         * 
         * @return New HL value.
         */
-       RegVal_16 loadHLSPOffset(int8_t imm);
+       Regval16 loadHLSPOffset(int8_t imm);
        /**
         * @brief Add signed immediate to stack pointer.
         * 
         * @return New HL value.
         */
-       RegVal_16 addSPImm(int8_t imm);
+       Regval16 addSPImm(int8_t imm);
        /**
         * @brief Increment program counter.
         * 
         * @return New PC value.
         */
-       RegVal_16 incPC();
+       Regval16 incPC();
        /**
         * @brief Get program counter value
         * 
         * @return New PC value.
         */
-       RegVal_16 getPC();
+       Regval16 getPC();
 
        /**
         * @brief Get 8-bit register value
@@ -870,7 +870,7 @@ class CPU{
         * 
         * @return Register value
         */
-       RegVal_8 getReg(RegIndex_8 reg);
+       Regval8 getReg(RegIndex_8 reg);
 
        /**
         * @brief Get 16-bit register value
@@ -879,7 +879,7 @@ class CPU{
         * 
         * @return Register value
         */
-       RegVal_16 getReg(RegIndex_16 reg);
+       Regval16 getReg(RegIndex_16 reg);
 
        void printStatus();
 
