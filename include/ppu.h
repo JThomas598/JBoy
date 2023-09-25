@@ -25,6 +25,7 @@ typedef enum State{
 constexpr int CYCLES_PER_LINE = 456;
 constexpr int OAM_CYCLES = 20;
 
+constexpr int WIN_DIMENSION_SCALE_FACTOR = 2;
 
 class PPU{
     private:
@@ -32,17 +33,23 @@ class PPU{
         Memory mem;
         Fetcher fetcher;
         OAM oam;
+        Palette palette;
+
         State state;
+
         Register lcdcReg;
         Register intFlagReg;
         Register lyReg;
         Register scxReg;
         Register scyReg;
         Register statReg;
+
         Regval8 trashPixelCount;
+
         Regval8 scanX;
         int cyclesLeft;
         int numFrames; 
+
         SDL_Window* window;
         SDL_Surface* windowSurface;
         SDL_Renderer* renderer; 
@@ -52,11 +59,11 @@ class PPU{
 
         void runFSM();
         void updateDisplay();
-        uint32_t resolveColor(GBColor color);
+        uint32_t resolveColor(PaletteIndex color);
         void prepBackgroundLine();
         void prepSpriteFetch();
         void prepWindowLine();
-        void drawPixel(GBColor color);
+        void drawPixel(GbPixel pixel);
     public:
         PPU();
         ~PPU();

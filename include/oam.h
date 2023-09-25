@@ -9,6 +9,14 @@ typedef struct Object{
     Regval8 flags;
 }Object;
 
+
+typedef enum AttributeBitIndex{
+    PALLETE_NUMBER = 4,
+    X_FLIP,
+    Y_FLIP,
+    MAP_OVER_OBJ
+}AttributeBitIndex;
+
 constexpr Regval8 OBJECT_MAX = 40;
 constexpr Regval8 OBJECT_SIZE = 4;
 

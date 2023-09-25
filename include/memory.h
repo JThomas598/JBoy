@@ -57,6 +57,12 @@ constexpr Regval16 TAC_REG_ADDR = 0xFF07;
 //DMA Reg
 constexpr Regval16 DMA_REG = 0xFF46;
 
+//Palette Regs
+constexpr Regval16 BGP_REG_ADDR = 0xFF47;
+constexpr Regval16 OBP0_REG_ADDR = 0xFF48;
+constexpr Regval16 OBP1_REG_ADDR = 0xFF49;
+
+
 
 //Tilemap/Tiledata Locations
 constexpr Regval16 TILE_MAP_ADDR_1 = 0x9800;

@@ -38,8 +38,8 @@ PPU::PPU() :
     window = SDL_CreateWindow("JK EMU", 
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
+        WIN_DIMENSION_SCALE_FACTOR * SCREEN_WIDTH,
+        WIN_DIMENSION_SCALE_FACTOR * SCREEN_HEIGHT,
         SDL_WINDOW_ALLOW_HIGHDPI);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     windowSurface = SDL_GetWindowSurface(window);
@@ -83,24 +83,6 @@ void PPU::updateDisplay() {
     }
 }
 
-uint32_t PPU::resolveColor(GBColor color){
-    //remember to add logic for determining pallete of pixel.
-    //probably with a struct for each pixel denoting whether
-    //its from a map or sprite and which pallete its using
-    switch(color){
-        case BLACK:
-            return ARGB_BLACK;
-        case DARK_GRAY:
-            return ARGB_DARK_GRAY;
-        case LIGHT_GRAY:
-            return ARGB_LIGHT_GRAY;
-        case WHITE:
-            return ARGB_WHITE;
-        default:
-            throw std::invalid_argument("PPU::resolveColor(): Invalid color palette index.");
-    }
-}
-
 void PPU::prepBackgroundLine(){
     fetcher.resetCycles();
     fetcher.setMode(MAP_FETCH);
@@ -115,15 +97,31 @@ void PPU::prepBackgroundLine(){
     fetcher.setTileRow((lyReg + scyReg) % 8);
 }
 
+//TODO: Figure out sprite overlapping issue
 void PPU::prepSpriteFetch(){
     fetcher.resetCycles();
     fetcher.clearSpriteFifo();
     fetcher.setMode(SPRITE_FETCH);
 }
 
-void PPU::drawPixel(GBColor color){
+void PPU::drawPixel(GbPixel pixel){
     if(trashPixelCount == 0){
-        frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = resolveColor(color);
+        uint32_t rgbVal;
+        palette.update(); 
+        switch(pixel.palette){
+            case BGP:
+                rgbVal = palette.getColor(BGP, pixel.paletteIndex);
+                break;
+            case OBP0:
+                rgbVal = palette.getColor(OBP0, pixel.paletteIndex);
+                break;
+            case OBP1:
+                rgbVal = palette.getColor(OBP1, pixel.paletteIndex);
+                break;
+            default:
+                throw std::logic_error("PPU::drawPixel(): Something went horribly wrong...");
+        }
+        frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = rgbVal;
     }
     else
         trashPixelCount--;
@@ -281,8 +279,8 @@ void PPU::runFSM(){
                     state = FETCH_OBJ;
                     break;
                 }
-                GBColor color = fetcher.popPixel();
-                drawPixel(color);
+                GbPixel pixel = fetcher.popPixel();
+                drawPixel(pixel);
                 if(++scanX == SCREEN_WIDTH){
                     state = H_BLANK;
                     oam.clearQueue();

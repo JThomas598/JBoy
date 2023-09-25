@@ -9,7 +9,6 @@
 constexpr int TILE_SIZE = 16;
 constexpr int TILE_MAP_ROW_SIZE = 32;
 
-
 Fetcher::Fetcher() :
     mem(PPU_PERM), 
     lcdcReg(mem.getRegister(LCDC_REG_ADDR)),
@@ -75,37 +74,44 @@ void Fetcher::fetchMapTileRow(){
         tileRowAddr = tileDataAddr + ((int8_t)index * TILE_SIZE) + (tileRow * 2);
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
-    Regval8 bit0;
-    Regval8 bit1;
-    for(int i = 7; i > 0; i--){
-        bit0 = (lsbTileRow >> i) & 0x01;
-        bit1 = (msbTileRow >> (i-1)) & 0x02;
-        bgFifo.push((GBColor)(bit1 | bit0));
+    for(int i = 7; i >= 0; i--){
+        Regval8 paletteIndex = 0x00;
+        paletteIndex = (msbTileRow >> i) & 0x01;
+        paletteIndex <<= 1;
+        paletteIndex |= (lsbTileRow >> i) & 0x01;
+        bgFifo.push((PaletteIndex)paletteIndex);
     }
-    //edge case
-    bit0 = lsbTileRow & 0x01;
-    bit1 = (msbTileRow << 1) & 0x02;
-    bgFifo.push((GBColor)(bit1 | bit0));
 }
 
 void Fetcher::fetchSpriteTileRow(){
     //remember to implement logic for 8x16 sprites
     Regval16 spriteRow = (lyReg + 16) - obj.y_pos;
     Regval16 tileRowAddr;
-    tileRowAddr = TILE_DATA_ADDR_1 + (obj.tileIndex * TILE_SIZE) + (spriteRow * 2);
+    if(util::checkBit(obj.flags, Y_FLIP))
+        tileRowAddr = TILE_DATA_ADDR_1 + (obj.tileIndex * TILE_SIZE) + (7 - (spriteRow * 2));
+    else
+        tileRowAddr = TILE_DATA_ADDR_1 + (obj.tileIndex * TILE_SIZE) + (spriteRow * 2);
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
-    Regval8 bit0;
-    Regval8 bit1;
-    for(int i = 7; i > 0; i--){
-        bit0 = (lsbTileRow >> i) & 0x01;
-        bit1 = (msbTileRow >> (i-1)) & 0x02;
-        spriteFifo.push((GBColor)(bit1 | bit0));
+    if(util::checkBit(obj.flags, X_FLIP)){
+        for(int i = 0; i <= 7; i++){
+            Regval8 paletteIndex = 0x00;
+            paletteIndex = (msbTileRow >> i) & 0x01;
+            paletteIndex <<= 1;
+            paletteIndex |= (lsbTileRow >> i) & 0x01;
+            spriteFifo.push((PaletteIndex)paletteIndex);
+        }
+    }
+    else{
+        for(int i = 7; i >= 0; i--){
+            Regval8 paletteIndex = 0x00;
+            paletteIndex = (msbTileRow >> i) & 0x01;
+            paletteIndex <<= 1;
+            paletteIndex |= (lsbTileRow >> i) & 0x01;
+            spriteFifo.push((PaletteIndex)paletteIndex);
+        }
     }
     //edge case
-    bit0 = lsbTileRow & 0x01;
-    bit1 = (msbTileRow << 1) & 0x02;
-    spriteFifo.push((GBColor)(bit1 | bit0));
 }
 
 
@@ -123,12 +129,12 @@ void Fetcher::beginSpriteFetch(Object obj){
 }
 
 void Fetcher::clearBgFifo(){
-    std::queue<GBColor> empty;
+    std::queue<PaletteIndex> empty;
     std::swap(bgFifo, empty);
 }
 
 void Fetcher::clearSpriteFifo(){
-    std::queue<GBColor> empty;
+    std::queue<PaletteIndex> empty;
     std::swap(spriteFifo, empty);
 }
 
@@ -179,23 +185,31 @@ Regval8 Fetcher::getSpriteFifoSize(){
     return spriteFifo.size();
 }
 
-GBColor Fetcher::popPixel(){
+GBPixel Fetcher::popPixel(){
     if(bgFifo.size() <= 8){
         throw std::logic_error("Fetcher::popPixel(): attempted pop with bgFifo size at or below 8 pixels");
     }
     //insert logic of mixing sprite and bg/win data here
-    GBColor retval;
+    GbPixel pixel;
     if(spriteFifo.size() > 0){
-        if(spriteFifo.front() == 0)
-            retval = bgFifo.front();
-        else
-            retval = spriteFifo.front();
+        if(spriteFifo.front() == COLOR_0){
+            pixel.paletteIndex = bgFifo.front();
+            pixel.palette = BGP;
+        }
+        else{
+            pixel.paletteIndex = spriteFifo.front();
+            if(util::checkBit(obj.flags, AttributeBitIndex::PALLETE_NUMBER))
+                pixel.palette = OBP1;
+            else
+                pixel.palette = OBP0;
+
+        }
         spriteFifo.pop();
-        bgFifo.pop();
     }
     else{
-        retval = bgFifo.front();
-        bgFifo.pop();
+        pixel.paletteIndex = bgFifo.front();
+        pixel.palette = BGP;
     }
-    return retval;
+    bgFifo.pop();
+    return pixel;
 }

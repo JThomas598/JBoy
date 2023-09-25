@@ -5,6 +5,19 @@
 #include "memory.h"
 #include "lcd.h"
 #include "oam.h"
+#include "palette.h"
+
+typedef enum SourcePalette{
+    BG,
+    WINDOW,
+    OBJ0,
+    OBJ1,
+}SourcePalette;
+
+typedef struct GBPixel{
+    PaletteSelect palette;
+    PaletteIndex paletteIndex;
+}GbPixel;
 
 constexpr int BG_FIFO_MIN = 8;
 
@@ -16,8 +29,8 @@ typedef enum FetcherMode{
 
 class Fetcher{
     private:
-        std::queue<GBColor> bgFifo;
-        std::queue<GBColor> spriteFifo;
+        std::queue<PaletteIndex> bgFifo;
+        std::queue<PaletteIndex> spriteFifo;
         Memory mem;
         Register lcdcReg;
         Register lyReg;
@@ -51,6 +64,6 @@ class Fetcher{
         void setMode(FetcherMode mode); 
         Regval8 getBgFifoSize();
         Regval8 getSpriteFifoSize();
-        GBColor popPixel();
+        GBPixel popPixel();
 };
 #endif
