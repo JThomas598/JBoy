@@ -83,8 +83,9 @@ void Fetcher::fetchMapTileRow(){
     }
 }
 
+//TODO: Implement logic for rendering 8x16 objects
+//FIXME: Fix sprite overlapping problem 
 void Fetcher::fetchSpriteTileRow(){
-    //remember to implement logic for 8x16 sprites
     Regval16 spriteRow = (lyReg + 16) - obj.y_pos;
     Regval16 tileRowAddr;
     if(util::checkBit(obj.flags, Y_FLIP))
@@ -93,6 +94,7 @@ void Fetcher::fetchSpriteTileRow(){
         tileRowAddr = TILE_DATA_ADDR_1 + (obj.tileIndex * TILE_SIZE) + (spriteRow * 2);
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
+    //get sprite row
     if(util::checkBit(obj.flags, X_FLIP)){
         for(int i = 0; i <= 7; i++){
             Regval8 paletteIndex = 0x00;
@@ -111,7 +113,6 @@ void Fetcher::fetchSpriteTileRow(){
             spriteFifo.push((PaletteIndex)paletteIndex);
         }
     }
-    //edge case
 }
 
 
@@ -189,7 +190,6 @@ GBPixel Fetcher::popPixel(){
     if(bgFifo.size() <= 8){
         throw std::logic_error("Fetcher::popPixel(): attempted pop with bgFifo size at or below 8 pixels");
     }
-    //insert logic of mixing sprite and bg/win data here
     GbPixel pixel;
     if(spriteFifo.size() > 0){
         if(spriteFifo.front() == COLOR_0){

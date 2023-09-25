@@ -97,7 +97,6 @@ void PPU::prepBackgroundLine(){
     fetcher.setTileRow((lyReg + scyReg) % 8);
 }
 
-//TODO: Figure out sprite overlapping issue
 void PPU::prepSpriteFetch(){
     fetcher.resetCycles();
     fetcher.clearSpriteFifo();
