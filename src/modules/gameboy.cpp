@@ -11,6 +11,7 @@ Gameboy::Gameboy() : mem(SYS_PERM){
     mem.write(IE_REG_ADDR, 0x00);
     mem.write(IF_REG_ADDR, 0x00);
     state = FETCH_OP;
+    IME = false;
 }
 
 void Gameboy::printStatus(){
@@ -138,6 +139,7 @@ Regval8 Gameboy::getJoypad(){
     return mem.getJoypadBuff();
 }
 
+//TODO: Add serial interrupts if needed
 void Gameboy::printSerial(){
     if(mem.read(SC) == 0x81){
         mem.write(SC, 0x00); //clear request
@@ -927,11 +929,12 @@ void Gameboy::executeCBOP(){
 }
 void Gameboy::runFSM(){
     if(state == FETCH_OP){
+        //weird case where a halt is ceased when ANY interrupt is triggered,
+        //regardless of the IME value.
+        if(mem.read(IF_REG_ADDR) && opcode == HALT){
+            cpu.incPC();
+        }
         if(IME){
-            //do not land back on halt when returning from int
-            if(opcode == HALT){
-                cpu.incPC();
-            }
             handleInterrupt();
         }
         opcode = mem.read(cpu.getPC());
