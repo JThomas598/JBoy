@@ -21,7 +21,7 @@ Memory::Memory(Permission perm) : perm(perm){
     mem[JOYP_REG_ADDR] = 0xCF;
     joypadBuff = 0xFF;
     currRamBank = 0;
-    currRomBank = 0;
+    currRomBank = 1;
 }
 
 bool Memory::inRange(Regval16 addr, Regval16 low, Regval16 hi) const{
