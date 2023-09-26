@@ -93,7 +93,7 @@ void Fetcher::fetchSpriteTileRow(){
             tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + ((15 - spriteRow) * 2);
         }
         else{
-            tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + 7 - (spriteRow * 2);
+            tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + ((7 - spriteRow) * 2);
         }
     }
     else

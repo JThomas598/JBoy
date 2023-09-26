@@ -34,7 +34,9 @@ PPU::PPU() :
     scxReg(mem.getRegister(SCX_REG_ADDR)),
     scyReg(mem.getRegister(SCY_REG_ADDR)),
     statReg(mem.getRegister(STAT_REG_ADDR)),
-    lycReg(mem.getRegister(LYC_REG_ADDR))
+    lycReg(mem.getRegister(LYC_REG_ADDR)),
+    winYReg(mem.getRegister(WINY_REG_ADDR)),
+    winXReg(mem.getRegister(WINX_REG_ADDR))
 {
     window = SDL_CreateWindow("JK EMU", 
         SDL_WINDOWPOS_CENTERED,
@@ -49,6 +51,7 @@ PPU::PPU() :
     //lyReg = 0x91;
     statReg = 0x81;
     trashPixelCount = 0;
+    drawingWindow = false;
     state = OAM_SEARCH;
     cyclesLeft = CYCLES_PER_LINE;
     numFrames = 0;
@@ -98,6 +101,20 @@ void PPU::prepLine(){
     trashPixelCount = scxReg % 8;
     fetcher.setMapY(((scyReg + lyReg) / 8) % 32);
     fetcher.setTileRow((lyReg + scyReg) % 8);
+}
+
+void PPU::prepWindowLine(){
+    fetcher.resetCycles();
+    fetcher.setMode(MAP_FETCH);
+    fetcher.clearBgFifo(); 
+    Regval16 tileMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
+    fetcher.setMapAddr(tileMapAddr);
+    Regval16 tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
+    fetcher.setTileBlockAddr(tileDataAddr);
+    fetcher.setMapX(0);
+    fetcher.setMapY((lyReg - winYReg) / 8);
+    fetcher.setTileRow((lyReg - winYReg) % 8);
+    trashPixelCount = 0; //don't scroll
 }
 
 void PPU::prepSpriteFetch(){
@@ -278,8 +295,13 @@ void PPU::runFSM(){
         break;
         case DRAW_BG_WIN:
             if(fetcher.getBgFifoSize() > BG_FIFO_MIN){
-                Regval8 minX = oam.getMinX();
+                if(util::checkBit(lcdcReg, LCDC_WIN_EN) && scanX + 7 == winXReg && lyReg >= winYReg && !drawingWindow){
+                    drawingWindow = true;
+                    prepWindowLine();
+                    break;
+                }
                 if(util::checkBit(lcdcReg, LCDC_OBJ_EN)){
+                    Regval8 minX = oam.getMinX();
                     if((scanX + 8 == minX) || (minX > 0 && minX < 8)){
                         fetcher.beginSpriteFetch(oam.popObj());
                         prepSpriteFetch();
@@ -292,6 +314,7 @@ void PPU::runFSM(){
                 if(scanX == SCREEN_WIDTH){
                     if(statReg & STAT_HBLANK_ENABLE_MASK){
                         intFlagReg |= LCD_STAT_INT;
+                        statReg |= STAT_LYC_FLAG_MASK;
                     }
                     state = H_BLANK;
                     oam.clearQueue();
@@ -324,6 +347,7 @@ void PPU::runFSM(){
                     break;
                 }
                 prepLine();
+                drawingWindow = false;
                 scanX = 0;
                 state = OAM_SEARCH;
                 cyclesLeft = CYCLES_PER_LINE;
@@ -335,11 +359,12 @@ void PPU::runFSM(){
             if(!cyclesLeft){
                 state = OAM_SEARCH;
                 signal.raiseSignal(FRAME_SIGNAL);
-                prepLine();
-                cyclesLeft = CYCLES_PER_LINE;
-                mem.write(lyReg, 0);
+                lyReg = 0;
                 scanX = 0;
                 lyReg = 0; 
+                prepLine();
+                drawingWindow = false;
+                cyclesLeft = CYCLES_PER_LINE;
                 break;
             }
             cyclesLeft--;

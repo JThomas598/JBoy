@@ -50,6 +50,10 @@ class PPU{
         Register scyReg;
         Register statReg;
         Register lycReg;
+        Register winYReg;
+        Register winXReg;
+
+        bool drawingWindow;
 
         Regval8 trashPixelCount;
 
@@ -68,8 +72,8 @@ class PPU{
         void updateDisplay();
         uint32_t resolveColor(PaletteIndex color);
         void prepLine();
-        void prepSpriteFetch();
         void prepWindowLine();
+        void prepSpriteFetch();
         void drawPixel(GbPixel pixel);
     public:
         PPU();
