@@ -23,18 +23,39 @@ typedef enum Access{
 }Access;
 
 //Key Memory Map Boundaries
-constexpr Regval16 ROM_BANK_0_START = 0x0000;
-constexpr Regval16 ROM_BANK_0_END = 0x3FFF;
-constexpr Regval16 ROM_BANK_1_START = 0x4000;
-constexpr Regval16 ROM_BANK_1_END = 0x7FFF;
+constexpr Regval16 EXT_RAM_ENABLE_START = 0x0000;
+constexpr Regval16 EXT_RAM_ENABLE_END = 0x1FFF;
+
+constexpr Regval16 ROM_BANK_SELECT_START = 0x2000;
+constexpr Regval16 ROM_BANK_SELECT_END = 0x3FFF;
+
+constexpr Regval16 RAM_BANK_SELECT_START = 0x4000;
+constexpr Regval16 RAM_BANK_SELECT_END = 0x5FFF;
+
+constexpr Regval16 BANKING_MODE_SELECT_START = 0x6000;
+constexpr Regval16 BANKING_MODE_SELECT_END = 0x7FFF;
+
+constexpr Regval16 RAM_ENABLE_START = 0x0000;
+constexpr Regval16 RAM_ENABLE_END = 0x1FFF;
+
+constexpr Regval16 ROM_BANK_N_START = 0x4000;
+constexpr Regval16 ROM_BANK_N_END = 0x7FFF;
+
+constexpr Regval16 EXT_RAM_START = 0xA000;
+constexpr Regval16 EXT_RAM_END = 0xBFFF;
+
 constexpr Regval16 ECHO_START = 0xE000;
 constexpr Regval16 ECHO_END = 0xFDFF;
+
 constexpr Regval16 BAD_ZONE_START = 0xFEA0;
 constexpr Regval16 BAD_ZONE_END = 0xFEFF;
+
 constexpr Regval16 OAM_START = 0xFE00;
 constexpr Regval16 OAM_END = 0xFE9F;
+
 constexpr Regval16 HRAM_START = 0xFF80;
 constexpr Regval16 HRAM_END = 0xFFFE;
+
 constexpr Regval16 VRAM_START = 0x8000;
 constexpr Regval16 VRAM_END = 0x9FFF;
 
@@ -46,6 +67,7 @@ constexpr Regval16 STAT_REG_ADDR = 0xFF41;
 constexpr Regval16 SCY_REG_ADDR = 0xFF42;
 constexpr Regval16 SCX_REG_ADDR = 0xFF43;
 constexpr Regval16 LY_REG_ADDR = 0xFF44;
+constexpr Regval16 LYC_REG_ADDR = 0xFF45;
 constexpr Regval16 IE_REG_ADDR = 0xFFFF;
 constexpr Regval16 JOYP_REG_ADDR = 0xFF00;
 constexpr Regval16 IF_REG_ADDR = 0xFF0F;
@@ -91,9 +113,18 @@ constexpr Regval8 UP_PAD_MASK = 0x40;
 constexpr Regval8 DOWN_PAD_MASK = 0x80;
 constexpr Regval8 ALL_PAD_MASK = 0xF0;
 
+constexpr int EXT_RAM_BANK_SIZE = 8192;
+constexpr int ROM_BANK_SIZE = 16384;
+constexpr int MBC1_NUM_RAM_BANKS = 4;
+constexpr int MBC1_NUM_ROM_BANKS = 128;
+
 class Memory{
     private:
         static std::array<Regval8,UINT16_MAX+1> mem;
+        static std::array<std::array<Regval8, EXT_RAM_BANK_SIZE>, MBC1_NUM_RAM_BANKS> ramBanks;
+        static std::array<std::array<Regval8, ROM_BANK_SIZE>, MBC1_NUM_ROM_BANKS> romBanks;
+        static Regval8 currRamBank;
+        static Regval8 currRomBank;
         static bool ppuLock;
         static bool dmaLock;
         static bool vramAltered;
@@ -133,6 +164,16 @@ class Memory{
      * @return number of bytes written 
      */
         Regval16 dump(const Regval16 addr, const Regval8* buf, const size_t n) const;
+    /**
+     * @brief dumps n bytes from buf, starting from addr in memory
+     * 
+     * @param addr starting point of dump
+     * 
+     * @param n number of bytes to dump
+     * 
+     * @return number of bytes written 
+     */
+        Regval16 copyRomBank(const Regval8* buf, const int bankNum);
     /**
      * @brief forbids all but HRAM accesses for the CPU. Only Memory instances with the DMA perm can do this.
      * 

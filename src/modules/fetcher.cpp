@@ -83,15 +83,21 @@ void Fetcher::fetchMapTileRow(){
     }
 }
 
-//TODO: Implement logic for rendering 8x16 objects
 //FIXME: Fix sprite overlapping problem 
 void Fetcher::fetchSpriteTileRow(){
     Regval16 spriteRow = (lyReg + 16) - obj.y_pos;
+    Regval8 index = obj.tileIndex;
     Regval16 tileRowAddr;
-    if(util::checkBit(obj.flags, Y_FLIP))
-        tileRowAddr = TILE_DATA_ADDR_1 + (obj.tileIndex * TILE_SIZE) + (7 - (spriteRow * 2));
+    if(util::checkBit(obj.flags, Y_FLIP)){
+        if(util::checkBit(lcdcReg, LCDC_OBJ_SIZE)){
+            tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + ((15 - spriteRow) * 2);
+        }
+        else{
+            tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + 7 - (spriteRow * 2);
+        }
+    }
     else
-        tileRowAddr = TILE_DATA_ADDR_1 + (obj.tileIndex * TILE_SIZE) + (spriteRow * 2);
+        tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + (spriteRow * 2);
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
     //get sprite row

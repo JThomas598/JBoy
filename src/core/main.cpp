@@ -21,6 +21,7 @@ typedef enum EventResult{
 
 int main(int argc, char** argv){
     SDL_Init(SDL_INIT_EVERYTHING);
+    SDL_SetHint(SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING, "1");
     Signal signal;
     signal.enableSignal(FRAME_SIGNAL);
     Gameboy gb;

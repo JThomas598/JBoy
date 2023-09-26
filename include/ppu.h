@@ -21,6 +21,12 @@ typedef enum State{
     V_BLANK
 }State;
 
+constexpr Regval8 STAT_LYC_ENABLE_MASK = 0x40;
+constexpr Regval8 STAT_OAM_ENABLE_MASK = 0x20;
+constexpr Regval8 STAT_VBLANK_ENABLE_MASK = 0x10;
+constexpr Regval8 STAT_HBLANK_ENABLE_MASK = 0x08;
+constexpr Regval8 STAT_LYC_FLAG_MASK = 0x04;
+
 
 constexpr int CYCLES_PER_LINE = 456;
 constexpr int OAM_CYCLES = 20;
@@ -43,6 +49,7 @@ class PPU{
         Register scxReg;
         Register scyReg;
         Register statReg;
+        Register lycReg;
 
         Regval8 trashPixelCount;
 
@@ -60,7 +67,7 @@ class PPU{
         void runFSM();
         void updateDisplay();
         uint32_t resolveColor(PaletteIndex color);
-        void prepBackgroundLine();
+        void prepLine();
         void prepSpriteFetch();
         void prepWindowLine();
         void drawPixel(GbPixel pixel);

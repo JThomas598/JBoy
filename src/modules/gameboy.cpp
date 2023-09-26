@@ -21,38 +21,37 @@ void Gameboy::printStatus(){
 }
 
 size_t Gameboy::loadGame(std::string filename){
-    char buf[BUFSIZ];
+    char buf[ROM_BANK_SIZE];
     ifstream game(filename, ios_base::in | ios_base::binary);
     if(game.fail()){
         throw invalid_argument("[ERROR] Gameboy::loadGame(): Failed to open requested gb file\n");
     }
-    size_t total_read = 0;
-    size_t curr_read = 0;
+    int totalRead = 0;
+    int currRead = 0;
+    int currBank = 0;
+    //Read in bank 0
+    while(totalRead != ROM_BANK_SIZE){
+        game.read(buf, ROM_BANK_SIZE - totalRead);
+        currRead = game.gcount();
+        mem.dump(totalRead, (Regval8*)buf, currRead);
+        totalRead += currRead;
+    }
+    printf("[INFO] ROM Bank %d read successfully. Size: %d bytes\n",currBank, totalRead);
+    totalRead = 0;
+    currBank++;
+    //Read in switchable banks
     while(!game.eof()){
-        game.read(buf, BUFSIZ);
-        curr_read = game.gcount();
-        mem.dump(total_read, (Regval8*)buf, curr_read);
-        total_read += curr_read;
+        while(totalRead != ROM_BANK_SIZE && !game.eof()){
+            game.read(buf, ROM_BANK_SIZE);
+            currRead = game.gcount();
+            totalRead += currRead;
+            mem.copyRomBank((Regval8*)buf, currBank);
+        }
+        printf("[INFO] ROM Bank %d read successfully. Size: %d bytes\n",currBank, totalRead);
+        currBank++;
+        totalRead = 0;
     }
-    printf("[INFO] ROM read successfully. Size: %ld bytes\n", total_read);
-    return total_read;
-}
-
-void Gameboy::loadBootRom(){
-    char buf[BUFSIZ];
-    size_t total_read = 0;
-    size_t curr_read = 0;
-    ifstream boot("dmg_boot.bin", ios_base::in | ios_base::binary);
-    if(boot.fail()){
-        throw invalid_argument("[ERROR] Gameboy::bootRom(): Failed to open requested gb file\n");
-    }
-    while(!boot.eof()){
-        boot.read(buf, BUFSIZ);
-        curr_read = boot.gcount();
-        mem.dump(total_read, (Regval8*)buf, curr_read);
-        total_read += curr_read;
-    }
-    printf("[INFO] Boot ROM read successfully. Size: %ld bytes\n", total_read);
+    return totalRead;
 }
 
 void Gameboy::clearInterrupt(Regval8 mask){

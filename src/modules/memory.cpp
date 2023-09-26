@@ -5,6 +5,10 @@
 
 //static vars
 std::array<Regval8,UINT16_MAX+1> Memory::mem;
+std::array<std::array<Regval8, EXT_RAM_BANK_SIZE>, MBC1_NUM_RAM_BANKS> Memory::ramBanks;
+std::array<std::array<Regval8, ROM_BANK_SIZE>, MBC1_NUM_ROM_BANKS> Memory::romBanks;
+Regval8 Memory::currRamBank;
+Regval8 Memory::currRomBank;
 Regval8 Memory::joypadBuff;
 bool Memory::ppuLock = false;
 bool Memory::dmaLock = false;
@@ -16,6 +20,8 @@ constexpr Regval8 BUTTON_READ_MASK = 0x20;
 Memory::Memory(Permission perm) : perm(perm){
     mem[JOYP_REG_ADDR] = 0xCF;
     joypadBuff = 0xFF;
+    currRamBank = 0;
+    currRomBank = 0;
 }
 
 bool Memory::inRange(Regval16 addr, Regval16 low, Regval16 hi) const{
@@ -27,9 +33,6 @@ bool Memory::inRange(Regval16 addr, Regval16 low, Regval16 hi) const{
 bool Memory::checkPerm(const Regval16 addr, const Access acc) const{
     if((inRange(addr, ECHO_START, ECHO_END) ||
         inRange(addr, BAD_ZONE_START, BAD_ZONE_END))){
-        return false;
-    }
-    else if(acc == WRITE && inRange(addr, ROM_BANK_0_START, ROM_BANK_1_END)){
         return false;
     }
     else if(perm == CPU_PERM){
@@ -71,6 +74,16 @@ bool Memory::write(const Regval16 addr, const Regval8 byte) const{
         return false;
     if(addr == JOYP_REG_ADDR)
         prepJoypadRead(byte);
+    else if(inRange(addr, RAM_BANK_SELECT_START, RAM_BANK_SELECT_END)){
+        currRamBank = byte;
+    }
+    else if(inRange(addr, ROM_BANK_SELECT_START, ROM_BANK_SELECT_END)){
+        currRomBank = byte;
+        if(currRomBank == 0){currRomBank = 1;}
+    }
+    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END)){
+        ramBanks[currRamBank][addr - EXT_RAM_START] = byte;
+    }
     else{
         mem[addr] = byte;
     }
@@ -81,16 +94,28 @@ Regval8 Memory::read(const Regval16 addr) const{
     if(!checkPerm(addr, READ)){
         return 0xFF;
     }
+    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END)){
+        return ramBanks[currRamBank][addr - EXT_RAM_START];
+    }
+    else if(inRange(addr, ROM_BANK_N_START, ROM_BANK_N_END)){
+        return romBanks[currRomBank][addr - ROM_BANK_N_START];
+    }
     return mem[addr];
 }
 
 Regval16 Memory::dump(const Regval16 addr, const Regval8* buf, const size_t n) const{
-    if(perm != SYS_PERM){
-        return 0;
-    }
     size_t bytes_written = 0;
     while(bytes_written < n){
         mem[addr + bytes_written] = buf[bytes_written];
+        bytes_written++;
+    }
+    return bytes_written;
+}
+
+Regval16 Memory::copyRomBank(const Regval8* buf, const int bankNum){
+    size_t bytes_written = 0;
+    while(bytes_written < ROM_BANK_SIZE){
+        romBanks[bankNum][bytes_written] = buf[bytes_written];
         bytes_written++;
     }
     return bytes_written;

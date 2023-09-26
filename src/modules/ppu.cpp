@@ -33,7 +33,8 @@ PPU::PPU() :
     lyReg(mem.getRegister(LY_REG_ADDR)),
     scxReg(mem.getRegister(SCX_REG_ADDR)),
     scyReg(mem.getRegister(SCY_REG_ADDR)),
-    statReg(mem.getRegister(STAT_REG_ADDR))
+    statReg(mem.getRegister(STAT_REG_ADDR)),
+    lycReg(mem.getRegister(LYC_REG_ADDR))
 {
     window = SDL_CreateWindow("JK EMU", 
         SDL_WINDOWPOS_CENTERED,
@@ -45,6 +46,7 @@ PPU::PPU() :
     windowSurface = SDL_GetWindowSurface(window);
     frameTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
     lcdcReg = 0x91;
+    //lyReg = 0x91;
     statReg = 0x81;
     trashPixelCount = 0;
     state = OAM_SEARCH;
@@ -83,10 +85,11 @@ void PPU::updateDisplay() {
     }
 }
 
-void PPU::prepBackgroundLine(){
+void PPU::prepLine(){
     fetcher.resetCycles();
     fetcher.setMode(MAP_FETCH);
     fetcher.clearBgFifo(); 
+    fetcher.clearSpriteFifo(); 
     Regval16 tileMapAddr = util::checkBit(lcdcReg, LCDC_BG_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
     fetcher.setMapAddr(tileMapAddr);
     Regval16 tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
@@ -121,9 +124,11 @@ void PPU::drawPixel(GbPixel pixel){
                 throw std::logic_error("PPU::drawPixel(): Something went horribly wrong...");
         }
         frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = rgbVal;
+        scanX++;
     }
-    else
+    else{
         trashPixelCount--;
+    }
 }
 
 /*
@@ -257,8 +262,9 @@ void PPU::printStatus(){
     std::cout << "curr pixel X pos: " << (int)scanX << std::endl;
     std::cout << "line number: " << (int)lyReg << std::endl; 
     std::cout << "frame number: " << (int)numFrames << std::endl;
-    std::cout << "tetris timer: " << (int)mem.read(0xffa6) << std::endl;
 }
+
+//FIXME: Fix odd sprite behavior when cut off by left side of screen
 
 void PPU::runFSM(){
     switch(state){
@@ -272,15 +278,21 @@ void PPU::runFSM(){
         break;
         case DRAW_BG_WIN:
             if(fetcher.getBgFifoSize() > BG_FIFO_MIN){
-                if(scanX + 8 == oam.getMinX() && util::checkBit(lcdcReg, LCDC_OBJ_EN)){
-                    fetcher.beginSpriteFetch(oam.popObj());
-                    prepSpriteFetch();
-                    state = FETCH_OBJ;
-                    break;
+                Regval8 minX = oam.getMinX();
+                if(util::checkBit(lcdcReg, LCDC_OBJ_EN)){
+                    if((scanX + 8 == minX) || (minX > 0 && minX < 8)){
+                        fetcher.beginSpriteFetch(oam.popObj());
+                        prepSpriteFetch();
+                        state = FETCH_OBJ;
+                        break;
+                    }
                 }
                 GbPixel pixel = fetcher.popPixel();
                 drawPixel(pixel);
-                if(++scanX == SCREEN_WIDTH){
+                if(scanX == SCREEN_WIDTH){
+                    if(statReg & STAT_HBLANK_ENABLE_MASK){
+                        intFlagReg |= LCD_STAT_INT;
+                    }
                     state = H_BLANK;
                     oam.clearQueue();
                     break;
@@ -300,6 +312,9 @@ void PPU::runFSM(){
         case H_BLANK:
             if(!cyclesLeft){
                 ++lyReg;
+                if((lyReg == lycReg) && (statReg & STAT_LYC_ENABLE_MASK)){
+                    intFlagReg |= LCD_STAT_INT;
+                }
                 if(lyReg == SCREEN_HEIGHT){
                     updateDisplay();
                     numFrames++;
@@ -308,7 +323,7 @@ void PPU::runFSM(){
                     cyclesLeft = CYCLES_PER_LINE * 10;
                     break;
                 }
-                prepBackgroundLine();
+                prepLine();
                 scanX = 0;
                 state = OAM_SEARCH;
                 cyclesLeft = CYCLES_PER_LINE;
@@ -320,7 +335,7 @@ void PPU::runFSM(){
             if(!cyclesLeft){
                 state = OAM_SEARCH;
                 signal.raiseSignal(FRAME_SIGNAL);
-                prepBackgroundLine();
+                prepLine();
                 cyclesLeft = CYCLES_PER_LINE;
                 mem.write(lyReg, 0);
                 scanX = 0;
