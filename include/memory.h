@@ -127,6 +127,7 @@ class Memory{
         static std::array<std::array<Regval8, ROM_BANK_SIZE>, MBC1_NUM_ROM_BANKS> romBanks;
         static Regval8 currRamBank;
         static Regval8 currRomBank;
+        static bool ramEnabled;
         static bool ppuLock;
         static bool dmaLock;
         static bool vramAltered;
@@ -212,5 +213,6 @@ class Memory{
         bool unlockVram();
         bool vramChange();
         void resetChange();
+        void printStatus();
 };
 #endif

@@ -10,6 +10,7 @@ std::array<std::array<Regval8, ROM_BANK_SIZE>, MBC1_NUM_ROM_BANKS> Memory::romBa
 Regval8 Memory::currRamBank;
 Regval8 Memory::currRomBank;
 Regval8 Memory::joypadBuff;
+bool Memory::ramEnabled = false;
 bool Memory::ppuLock = false;
 bool Memory::dmaLock = false;
 bool Memory::vramAltered = false;
@@ -74,14 +75,17 @@ bool Memory::write(const Regval16 addr, const Regval8 byte) const{
         return false;
     if(addr == JOYP_REG_ADDR)
         prepJoypadRead(byte);
+    else if(inRange(addr, EXT_RAM_ENABLE_START, EXT_RAM_ENABLE_END) && (byte & 0x0A) == 0x0A){
+        ramEnabled = true;
+    }
     else if(inRange(addr, RAM_BANK_SELECT_START, RAM_BANK_SELECT_END)){
-        currRamBank = byte;
+        currRamBank = byte & 0x03;
     }
     else if(inRange(addr, ROM_BANK_SELECT_START, ROM_BANK_SELECT_END)){
-        currRomBank = byte;
+        currRomBank = byte & 0x1F;
         if(currRomBank == 0){currRomBank = 1;}
     }
-    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END)){
+    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END) && ramEnabled){
         ramBanks[currRamBank][addr - EXT_RAM_START] = byte;
     }
     else{
@@ -94,8 +98,9 @@ Regval8 Memory::read(const Regval16 addr) const{
     if(!checkPerm(addr, READ)){
         return 0xFF;
     }
-    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END)){
+    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END) && ramEnabled){
         return ramBanks[currRamBank][addr - EXT_RAM_START];
+        std::cout << "reading ram bank" << std::endl;
     }
     else if(inRange(addr, ROM_BANK_N_START, ROM_BANK_N_END)){
         return romBanks[currRomBank][addr - ROM_BANK_N_START];
@@ -147,4 +152,9 @@ bool Memory::vramChange(){
 
 void Memory::resetChange(){
     vramAltered = false;
+}
+
+void Memory::printStatus(){
+    std::cout << "current rom bank: " << (int)currRomBank << std::endl;
+    std::cout << "current ram bank: " << (int)currRamBank << std::endl;
 }
