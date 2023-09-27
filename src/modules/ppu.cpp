@@ -31,8 +31,6 @@ PPU::PPU() :
     lcdcReg(mem.getRegister(LCDC_REG_ADDR)),
     intFlagReg(mem.getRegister(IF_REG_ADDR)),
     lyReg(mem.getRegister(LY_REG_ADDR)),
-    scxReg(mem.getRegister(SCX_REG_ADDR)),
-    scyReg(mem.getRegister(SCY_REG_ADDR)),
     statReg(mem.getRegister(STAT_REG_ADDR)),
     lycReg(mem.getRegister(LYC_REG_ADDR)),
     winYReg(mem.getRegister(WINY_REG_ADDR)),
@@ -88,43 +86,7 @@ void PPU::updateDisplay() {
     }
 }
 
-void PPU::prepLine(){
-    fetcher.resetCycles();
-    fetcher.setMode(MAP_FETCH);
-    fetcher.clearBgFifo(); 
-    fetcher.clearSpriteFifo(); 
-    Regval16 tileMapAddr = util::checkBit(lcdcReg, LCDC_BG_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
-    fetcher.setMapAddr(tileMapAddr);
-    Regval16 tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
-    fetcher.setTileBlockAddr(tileDataAddr);
-    fetcher.setMapX(scxReg / 8);
-    trashPixelCount = scxReg % 8;
-    fetcher.setMapY(((scyReg + lyReg) / 8) % 32);
-    fetcher.setTileRow((lyReg + scyReg) % 8);
-}
-
-void PPU::prepWindowLine(){
-    fetcher.resetCycles();
-    fetcher.setMode(MAP_FETCH);
-    fetcher.clearBgFifo(); 
-    Regval16 tileMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
-    fetcher.setMapAddr(tileMapAddr);
-    Regval16 tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
-    fetcher.setTileBlockAddr(tileDataAddr);
-    fetcher.setMapX(0);
-    fetcher.setMapY((lyReg - winYReg) / 8);
-    fetcher.setTileRow((lyReg - winYReg) % 8);
-    trashPixelCount = 0; //don't scroll
-}
-
-void PPU::prepSpriteFetch(){
-    fetcher.resetCycles();
-    fetcher.clearSpriteFifo();
-    fetcher.setMode(SPRITE_FETCH);
-}
-
 void PPU::drawPixel(GbPixel pixel){
-    if(trashPixelCount == 0){
         uint32_t rgbVal;
         palette.update(); 
         switch(pixel.palette){
@@ -142,139 +104,8 @@ void PPU::drawPixel(GbPixel pixel){
         }
         frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = rgbVal;
         scanX++;
-    }
-    else{
-        trashPixelCount--;
-    }
 }
 
-/*
-FETCHER INTERFACE
--fetchMapRow()
--fetchSpriteRow()
--popPixel()
--clearMapFifo()
--clearSpriteFifo()
-
-FETCHER PSEUDO FOR FETCHING A BG/WIN TILE ROW:
-
-bgMapAddr = figure out bg map addr from lcdc;
-winMapAddr = figure out win map addr from lcdc;
-if(at or past winY AND at or past winX AND window is enabled):
-	activeMapAddr = winMapAddr;
-	winMap.xCoord = x; //x is the fetchers hor offset from first win tile drawn on line
-	winMap.yCoord = y; //y is fetchers vert offset from first win tile drawn on frame
-	tileRow = (lyReg - winY) % 8
-else:
-	activeMapAddr = bgMap;
-	winMap.xCoord = ((mem.read(SCX) / 8) + x) & 0x1F;
-	winMap.yCoord = (mem.read(SCY) + lyReg) & 0xFF;   //y is fetcher's y position on the tile map
-
-STATE MACHINE PSEUDO:
-
-initialization:
-    mode = OAM_SEARCH;
-    modeCyclesLeft = 20;
-    lineCyclesLeft = CYCLES_PER_LINE; //456 dots
-
-switch(mode){
-    case OAM_SEARCH:
-        if(!cyclesLeft){
-            oam.searchLine(n)
-        }
-        cyclesLeft--;
-    case DRAW_BG:
-        if(at or past winY AND at or past winX AND window is enabled){
-            fetcher.resetCycles();
-            fetcher.clearBgFifo();
-            fetcher.setMapAddr(figure out win map addr from lcdc);
-            fetcher.setTileBlock(figure out window tile data location from lcdc);
-            fetcher.setMapX((scanX - winX) / 8);
-            fetcher.setMapY((lyReg - mem.read(winY)) / 8);
-            fetcher.setTileRow((lyReg - winY) % 8)
-            mode = DRAW_WIN
-        }
-        else if(scanX is at sprite's x coord AND objects are enabled){
-            fetcher.resetCycles();
-            fetcher.setMode(SPRITE);
-            Object obj = oam.popObj();
-            fetcher.setObj(obj); //find better name later
-            mode = DRAW_OBJ;
-        }
-        else{
-            if(fetcher.getBgFifoSize() > 8){
-                GbColor color = fetcher.popPixel();
-                drawPixel(color);
-                scanX++;
-                if(scanX == SCREEN_WIDTH){
-                    mode = H_BLANK;
-                }
-            }
-            fetcher.emulateFetchCycle();
-        }
-        lineCyclesLeft--;
-        break;
-    case DRAW_WIN:
-        if(scanX is at sprite's x coord AND objects are enabled){
-            fetcher.resetCycles();
-            fetcher.setMode(SPRITE);
-            Object obj = oam.popObj();
-            fetcher.setObj(obj); //find better name later
-            mode = DRAW_OBJ;
-        }
-        else{
-            if(fetcher.getBgFifoSize() > 8){
-                GbColor color = fetcher.popPixel();
-                drawPixel(color);
-                scanX++;
-                if(scanX == SCREEN_WIDTH){
-                    mode = H_BLANK;
-                }
-            }
-            fetcher.emulateFetchCycle();
-        }
-        lineCyclesLeft--;
-    case DRAW_OBJ:
-        //later
-    case H_BLANK:
-        if(!lineCyclesLeft){
-            if(pixY == HEIGHT - 1){
-                mode = V_BLANK;
-                modeCyclesLeft = 10 * CYCLES_PER_LINE;
-                break;
-            }
-            fetcher.resetCycles();
-            fetcher.setMode(MAP); 
-            fetcher.setMapAddr(figure out bg map addr from lcdc);
-            fetcher.setTileBlock(figure out bg tile data location from lcdc);
-            fetcher.setMapX(SCX / 8);
-            fetcher.setMapY(SCY / 8);
-            fetcher.setTileRow(SCY % 8);
-            mode = DRAW_BG;
-            pixY++;
-            scanX = 0;
-            break;
-        }
-        lineCyclesLeft--;
-        break;
-    case V_BLANK:
-        if(!lineCyclesLeft){
-            fetcher.resetCycles();
-            fetcher.resetCycles();
-            fetcher.setMode(MAP); 
-            fetcher.setMapAddr(figure out bg map addr from lcdc);
-            fetcher.setTileBlock(figure out bg tile data location from lcdc);
-            fetcher.setMapX(SCX / 8);
-            fetcher.setMapY(SCY / 8);
-            fetcher.setTileRow(SCY % 8);
-            mode = DRAW_BG;
-            pixY = 0;
-            scanX = 0;
-        }
-        lineCyclesLeft--;
-        break;
-}
-*/
 void PPU::printStatus(){
     std::cout << "curr pixel X pos: " << (int)scanX << std::endl;
     std::cout << "line number: " << (int)lyReg << std::endl; 
@@ -291,20 +122,20 @@ void PPU::runFSM(){
                 state = DRAW_BG_WIN;
                 break;
             }
+            statReg |= 0x03;
             cyclesLeft--;
         break;
         case DRAW_BG_WIN:
             if(fetcher.getBgFifoSize() > BG_FIFO_MIN){
-                if(util::checkBit(lcdcReg, LCDC_WIN_EN) && scanX + 7 == winXReg && lyReg >= winYReg && !drawingWindow){
+                if(util::checkBit(lcdcReg, LCDC_WIN_EN) && scanX + 7 >= winXReg && lyReg >= winYReg && !drawingWindow){
                     drawingWindow = true;
-                    prepWindowLine();
+                    fetcher.prepWinLine();
                     break;
                 }
                 if(util::checkBit(lcdcReg, LCDC_OBJ_EN)){
                     Regval8 minX = oam.getMinX();
                     if((scanX + 8 == minX) || (minX > 0 && minX < 8)){
                         fetcher.beginSpriteFetch(oam.popObj());
-                        prepSpriteFetch();
                         state = FETCH_OBJ;
                         break;
                     }
@@ -316,6 +147,7 @@ void PPU::runFSM(){
                         intFlagReg |= LCD_STAT_INT;
                         statReg |= STAT_LYC_FLAG_MASK;
                     }
+                    statReg &= ~0x03;
                     state = H_BLANK;
                     oam.clearQueue();
                     break;
@@ -343,12 +175,16 @@ void PPU::runFSM(){
                     numFrames++;
                     state = V_BLANK;
                     intFlagReg |= VBLANK_INT;
+                    statReg &= ~0x02;
+                    statReg |= 0x01;
                     cyclesLeft = CYCLES_PER_LINE * 10;
                     break;
                 }
-                prepLine();
+                fetcher.prepBgLine();
                 drawingWindow = false;
                 scanX = 0;
+                statReg |= 0x02;
+                statReg &= ~0x01;
                 state = OAM_SEARCH;
                 cyclesLeft = CYCLES_PER_LINE;
                 break;
@@ -357,12 +193,13 @@ void PPU::runFSM(){
             break;
         case V_BLANK:
             if(!cyclesLeft){
+                statReg |= 0x02;
+                statReg &= ~0x01;
                 state = OAM_SEARCH;
                 signal.raiseSignal(FRAME_SIGNAL);
                 lyReg = 0;
                 scanX = 0;
-                lyReg = 0; 
-                prepLine();
+                fetcher.prepBgLine();
                 drawingWindow = false;
                 cyclesLeft = CYCLES_PER_LINE;
                 break;
@@ -370,6 +207,9 @@ void PPU::runFSM(){
             cyclesLeft--;
             if(cyclesLeft % CYCLES_PER_LINE == 0){
                 ++lyReg;
+                if(lyReg == 255){
+                    std::cout << "OVERFLOW" << std::endl;
+                }
             }
             break;
         default:

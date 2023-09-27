@@ -12,7 +12,10 @@ constexpr int TILE_MAP_ROW_SIZE = 32;
 Fetcher::Fetcher() :
     mem(PPU_PERM), 
     lcdcReg(mem.getRegister(LCDC_REG_ADDR)),
-    lyReg(mem.getRegister(LY_REG_ADDR))
+    lyReg(mem.getRegister(LY_REG_ADDR)),
+    scxReg(mem.getRegister(SCX_REG_ADDR)),
+    scyReg(mem.getRegister(SCY_REG_ADDR)),
+    winYReg(mem.getRegister(WINY_REG_ADDR))
 {
     mapX = 0;
     mapY = 0;
@@ -74,7 +77,16 @@ void Fetcher::fetchMapTileRow(){
         tileRowAddr = tileDataAddr + ((int8_t)index * TILE_SIZE) + (tileRow * 2);
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
-    for(int i = 7; i >= 0; i--){
+    //chop pixels from leftmost tiles on screen
+    Regval8 initialMapX = scxReg / 8;
+    Regval8 numChoppedPixels = scxReg % 8;
+    Regval16 windowMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
+    bool drawingWindow = tileMapAddr == windowMapAddr;
+    if(drawingWindow || mapX != initialMapX){
+        numChoppedPixels = 0;
+    }
+    //fetch neccessary pixels
+    for(int i = 7 - numChoppedPixels; i >= 0; i--){
         Regval8 paletteIndex = 0x00;
         paletteIndex = (msbTileRow >> i) & 0x01;
         paletteIndex <<= 1;
@@ -100,9 +112,13 @@ void Fetcher::fetchSpriteTileRow(){
         tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + (spriteRow * 2);
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
+    Regval8 choppedPixels = 0; 
+    if(obj.x_pos < 8){
+        choppedPixels = 8 - obj.x_pos;
+    }
     //get sprite row
     if(util::checkBit(obj.flags, X_FLIP)){
-        for(int i = 0; i <= 7; i++){
+        for(int i = choppedPixels; i <=  7; i++){
             Regval8 paletteIndex = 0x00;
             paletteIndex = (msbTileRow >> i) & 0x01;
             paletteIndex <<= 1;
@@ -111,7 +127,7 @@ void Fetcher::fetchSpriteTileRow(){
         }
     }
     else{
-        for(int i = 7; i >= 0; i--){
+        for(int i = 7 - choppedPixels; i >= 0; i--){
             Regval8 paletteIndex = 0x00;
             paletteIndex = (msbTileRow >> i) & 0x01;
             paletteIndex <<= 1;
@@ -131,7 +147,9 @@ void Fetcher::emulateFetchCycle(){
 }
 
 void Fetcher::beginSpriteFetch(Object obj){
+    fetchCyclesLeft = 6;
     mode = SPRITE_FETCH;
+    clearSpriteFifo();
     this->obj = obj;
 }
 
@@ -145,44 +163,6 @@ void Fetcher::clearSpriteFifo(){
     std::swap(spriteFifo, empty);
 }
 
-void Fetcher::setMapAddr(Regval16 addr){
-    if(addr != TILE_MAP_ADDR_1 && addr != TILE_MAP_ADDR_2){
-        throw std::invalid_argument("address is not a valid GB tilemap address.");
-    }
-    tileMapAddr = addr;
-}
-
-void Fetcher::setTileBlockAddr(Regval16 addr){
-    if(addr != TILE_DATA_ADDR_1 && addr != TILE_DATA_ADDR_2){
-        throw std::invalid_argument("Fetcher::setTileBlockAddr(): passed address is not a valid GB tilemap address.");
-    }
-    tileDataAddr = addr;
-}
-
-void Fetcher::setMapX(Regval8 x){
-    if(x >= 32){
-        throw std::range_error("Fetcher::setMapX(): passed value is out of tilemap range");
-    }
-    mapX = x;
-}
-
-void Fetcher::setMapY(Regval8 y){
-    if(y >= 32){
-        throw std::range_error("Fetcher::setMapy(): passed value is outside of valid range");
-    }
-    mapY = y;
-}
-
-void Fetcher::setTileRow(Regval8 rowNum){
-    if(rowNum > 7){
-        throw std::invalid_argument("Fetcher::setTileRow(): passed value is outside of valid range");
-    }
-    tileRow = rowNum;
-}
-
-void Fetcher::setMode(FetcherMode mode){
-    this->mode = mode;
-}
 
 Regval8 Fetcher::getBgFifoSize(){
     return bgFifo.size();
@@ -218,4 +198,33 @@ GBPixel Fetcher::popPixel(){
     }
     bgFifo.pop();
     return pixel;
+}
+
+void Fetcher::prepBgLine(){
+    fetchCyclesLeft = 6;
+    mode = MAP_FETCH;
+    clearBgFifo();
+    clearSpriteFifo();
+    tileMapAddr = util::checkBit(lcdcReg, LCDC_BG_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
+    tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
+    mapX = scxReg / 8; 
+    mapY = ((scyReg + lyReg) / 8) % 32; 
+    tileRow = (lyReg + scyReg) % 8;
+}
+
+void Fetcher::prepWinLine(){
+    fetchCyclesLeft = 6;
+    mode = MAP_FETCH;
+    clearBgFifo();
+    tileMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
+    tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
+    mapX = 0;
+    mapY = ((lyReg - winYReg) / 8);
+    tileRow = (lyReg - winYReg) % 8;
+}
+
+void Fetcher::prepSpriteFetch(){
+    fetchCyclesLeft = 6;
+    mode = SPRITE_FETCH;
+    clearSpriteFifo();
 }
