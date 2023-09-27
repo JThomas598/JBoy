@@ -105,7 +105,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | DOWN_PAD_MASK;
                     }
                     break;
-                case SDLK_z:   
+                case SDLK_s:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~A_BUTTON_MASK;
                     }
@@ -113,7 +113,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | A_BUTTON_MASK;
                     }
                     break;
-                case SDLK_x:   
+                case SDLK_a:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~B_BUTTON_MASK;
                     }
@@ -121,7 +121,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | B_BUTTON_MASK;
                     }
                     break;
-                case SDLK_c:   
+                case SDLK_SLASH:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~SELECT_BUTTON_MASK;
                     }
@@ -129,7 +129,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | SELECT_BUTTON_MASK;
                     }
                     break;
-                case SDLK_v:   
+                case SDLK_PERIOD:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~START_BUTTON_MASK;
                     }
