@@ -46,8 +46,6 @@ class PPU{
         Register lcdcReg;
         Register intFlagReg;
         Register lyReg;
-        Register scxReg;
-        Register scyReg;
         Register statReg;
         Register lycReg;
         Register winYReg;

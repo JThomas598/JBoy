@@ -34,6 +34,9 @@ class Fetcher{
         Memory mem;
         Register lcdcReg;
         Register lyReg;
+        Register scxReg;
+        Register scyReg;
+        Register winYReg;
         Regval8 mapX;
         Regval8 mapY;
         Regval8 tileRow;
@@ -45,6 +48,10 @@ class Fetcher{
 
         void pushTileRow();
         void incX();
+        void fetchMapTileRow();
+        void fetchSpriteTileRow();
+        void clearBgFifo();
+        void clearSpriteFifo();
 
     public:
         Fetcher();
@@ -52,18 +59,11 @@ class Fetcher{
         void resetCycles();
         void emulateFetchCycle();
         void beginSpriteFetch(Object obj);
-        void fetchMapTileRow();
-        void fetchSpriteTileRow();
-        void clearBgFifo();
-        void clearSpriteFifo();
-        void setMapAddr(Regval16 addr);
-        void setTileBlockAddr(Regval16 addr);
-        void setMapX(Regval8 x);
-        void setMapY(Regval8 y);
-        void setTileRow(Regval8 rowNum);
-        void setMode(FetcherMode mode); 
         Regval8 getBgFifoSize();
         Regval8 getSpriteFifoSize();
         GBPixel popPixel();
+        void prepBgLine();
+        void prepWinLine();
+        void prepSpriteFetch();
 };
 #endif
