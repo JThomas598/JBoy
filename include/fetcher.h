@@ -27,43 +27,54 @@ typedef enum FetcherMode{
     SPRITE_FETCH
 }FetcherMode;
 
+constexpr int NUM_FETCH_CYCLES = 6;
+constexpr int TILE_WIDTH = 8;
+
 class Fetcher{
     private:
-        std::queue<PaletteIndex> bgFifo;
-        std::queue<PaletteIndex> spriteFifo;
+        std::vector<GbPixel> bgFifo;
+        std::vector<GbPixel> spriteFifo;
+        std::vector<GbPixel> spriteBuffer;
+
         Memory mem;
+
         Register lcdcReg;
         Register lyReg;
         Register scxReg;
         Register scyReg;
         Register winYReg;
+
         Regval8 mapX;
         Regval8 mapY;
-        Regval8 tileRow;
+        Regval8 mapTileRowNum;
         Regval16 tileMapAddr;
         Regval16 tileDataAddr;
-        Regval8 fetchCyclesLeft;
-        FetcherMode mode;
-        Object obj;
 
-        void pushTileRow();
+        Regval8 fetchCyclesLeft;
+
+        FetcherMode mode;
+        Object lastFetchedObj;
+
+        bool drawingWindow;
+
         void incX();
         void fetchMapTileRow();
         void fetchSpriteTileRow();
+        void mixSprites();
+        PaletteIndex getPaletteIndex(Regval8 msbTileRow, Regval8 lsbTileRow, Regval8 bitIndex);
+        GbPixel fifoPop(std::vector<GbPixel>&vector);
         void clearBgFifo();
+        void clearSpriteBuffer();
         void clearSpriteFifo();
 
     public:
         Fetcher();
-        void runFSM();
-        void resetCycles();
         void emulateFetchCycle();
-        void beginSpriteFetch(Object obj);
         Regval8 getBgFifoSize();
         Regval8 getSpriteFifoSize();
         GBPixel popPixel();
         void prepBgLine();
         void prepWinLine();
-        void prepSpriteFetch();
+        void prepSpriteFetch(Object obj);
 };
 #endif

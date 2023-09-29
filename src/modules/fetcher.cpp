@@ -6,8 +6,9 @@
 #include <stdexcept>
 #include <iostream> 
 
-constexpr int TILE_SIZE = 16;
-constexpr int TILE_MAP_ROW_SIZE = 32;
+constexpr int BYTES_PER_TILE = 16;
+constexpr int BYTES_PER_TILE_ROW = 2;
+constexpr int TILE_MAP_BORDER_LEN = 32;
 
 Fetcher::Fetcher() :
     mem(PPU_PERM), 
@@ -19,45 +20,154 @@ Fetcher::Fetcher() :
 {
     mapX = 0;
     mapY = 0;
-    tileRow = 0;
     tileMapAddr = TILE_MAP_ADDR_1;
     tileDataAddr = TILE_DATA_ADDR_1;
-    fetchCyclesLeft = 6;
+    fetchCyclesLeft = NUM_FETCH_CYCLES;
+    drawingWindow = false; 
     mode = MAP_FETCH;
 }
 
-/*
-if(all cycles passed){
-    fetchBgTileRow();
-    mapX++;
-}
-cyclesLeft--;
-*/
 void Fetcher::incX(){
-    if(++mapX == TILE_MAP_ROW_SIZE){
+    //horizontally wrap around tile map
+    if(++mapX == TILE_MAP_BORDER_LEN){
         mapX = 0;
     }
 }
 
-void Fetcher::runFSM(){
+void Fetcher::fetchMapTileRow(){
+    bool notSigned = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL);
+    uint8_t index = mem.read(tileMapAddr + (mapY*TILE_MAP_BORDER_LEN) + mapX);
+    Regval16 tileRowAddr;
+    Regval16 tileOffset;
+    if(notSigned)
+        tileOffset = (index * BYTES_PER_TILE);
+    else
+        tileOffset = ((int8_t)index * BYTES_PER_TILE);
+
+    tileRowAddr = tileDataAddr + tileOffset + (mapTileRowNum * BYTES_PER_TILE_ROW);
+    const Regval8 lsbTileRow = mem.read(tileRowAddr);
+    const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
+
+    //chop pixels from leftmost tiles on screen
+    Regval8 initialMapX = scxReg / 8;
+    Regval8 numChoppedPixels = scxReg % 8;
+    if(drawingWindow || mapX != initialMapX){
+        numChoppedPixels = 0;
+    }
+
+    //fetch neccessary pixels
+    for(int i = TILE_WIDTH - 1 - numChoppedPixels; i >= 0; i--){
+        GbPixel pixel;
+        pixel.paletteIndex = getPaletteIndex(msbTileRow, lsbTileRow, i);
+        pixel.palette = BGP;
+        bgFifo.push_back(pixel);
+    }
+}
+
+void Fetcher::fetchSpriteTileRow(){
+    Regval16 spriteRowNum = (lyReg + 16) - lastFetchedObj.y_pos;
+    Regval8 tileRowEquation;
+
+    if(util::checkBit(lastFetchedObj.flags, Y_FLIP)){
+        //vertical mirroring process changes depending on sprite height
+        if(util::checkBit(lcdcReg, LCDC_OBJ_SIZE))
+            tileRowEquation = (((TILE_WIDTH * BYTES_PER_TILE_ROW) - spriteRowNum - 1) * BYTES_PER_TILE_ROW);
+        else
+            tileRowEquation = ((TILE_WIDTH - spriteRowNum - 1) * BYTES_PER_TILE_ROW);
+    }
+    else
+        tileRowEquation = (spriteRowNum * BYTES_PER_TILE_ROW);
+
+    //Sprite fetches always use base address 0x8000 (TILE_DATA_ADDR_1)
+    Regval16 tileRowAddr = TILE_DATA_ADDR_1 + (lastFetchedObj.tileIndex * BYTES_PER_TILE) + tileRowEquation;
+    const Regval8 lsbTileRow = mem.read(tileRowAddr);
+    const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
+    
+    //Determine if sprite is chopped
+    Regval8 numChoppedPixels = 0; 
+    if(lastFetchedObj.x_pos < TILE_WIDTH){
+        numChoppedPixels = TILE_WIDTH - lastFetchedObj.x_pos;
+    }
+
+    //Get sprite row
+    GbPixel pixel;
+    //check for horizontal mirroring
+    if(util::checkBit(lastFetchedObj.flags, X_FLIP)){
+        for(int i = numChoppedPixels; i <=  TILE_WIDTH - 1; i++){
+            pixel.paletteIndex = getPaletteIndex(msbTileRow, lsbTileRow, i);
+            pixel.palette = util::checkBit(lastFetchedObj.flags, PALLETE_NUMBER) ? OBP1 : OBP0;
+            spriteBuffer.push_back(pixel);
+        }
+    }
+    else{
+        for(int i = TILE_WIDTH - numChoppedPixels - 1; i >= 0; i--){
+            pixel.paletteIndex = getPaletteIndex(msbTileRow, lsbTileRow, i);
+            pixel.palette = util::checkBit(lastFetchedObj.flags, PALLETE_NUMBER) ? OBP1 : OBP0;
+            spriteBuffer.push_back(pixel);
+        }
+    }
+    
+    //Resolve conflicts with overlapping sprites if present, otherwise, push to fifo
+    if(spriteFifo.size())
+        mixSprites(); 
+    else
+        spriteFifo = spriteBuffer;
+}
+
+void Fetcher::mixSprites(){
+    std::vector<GbPixel>::iterator fifoIter = spriteFifo.begin();
+    std::vector<GbPixel>::iterator bufferIter = spriteBuffer.begin();
+
+    //overwrite any transparent pixels in sprite fifo with those of the newly fetched sprite
+    while(fifoIter != spriteFifo.end()){
+        if((*fifoIter).paletteIndex == COLOR_0){
+            *fifoIter = *bufferIter;
+        }
+        fifoIter++;
+        bufferIter++;
+    }
+
+    //push remaining, non-overlapping pixels into the fifo
+    while(bufferIter != spriteBuffer.end()){
+        spriteFifo.push_back(*bufferIter);
+        bufferIter++;
+    }
+}
+
+PaletteIndex Fetcher::getPaletteIndex(Regval8 msbTileRow, Regval8 lsbTileRow, Regval8 bitIndex){
+        Regval8 paletteIndex = 0x00;
+        paletteIndex = (msbTileRow >> bitIndex) & 0x01;
+        paletteIndex <<= 1;
+        paletteIndex |= (lsbTileRow >> bitIndex) & 0x01;
+        return (PaletteIndex)paletteIndex;
+}
+
+GbPixel Fetcher::fifoPop(std::vector<GbPixel>&vector){
+    GbPixel pixel = vector.front();
+    vector.erase(vector.begin());
+    return pixel;
+}
+
+
+void Fetcher::emulateFetchCycle(){
     switch(mode){
         case MAP_FETCH:  
-            if(fetchCyclesLeft == 0){
+            //once cycles are up, try to push to fifo until successful 
+            if(!fetchCyclesLeft){
                 if(bgFifo.size() <= BG_FIFO_MIN){
                     fetchMapTileRow();
                     incX();
-                    fetchCyclesLeft = 6;
+                    fetchCyclesLeft = NUM_FETCH_CYCLES;
                 }
             }
-            else{
+            else
                 fetchCyclesLeft--;
-            }
             break;
         case SPRITE_FETCH:
             if(!fetchCyclesLeft){
                 fetchSpriteTileRow();
                 mode = MAP_FETCH;
-                fetchCyclesLeft = 6;
+                fetchCyclesLeft = NUM_FETCH_CYCLES;
             }
             else
                 fetchCyclesLeft--;
@@ -67,100 +177,19 @@ void Fetcher::runFSM(){
     }
 }
 
-void Fetcher::fetchMapTileRow(){
-    bool notSigned = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL);
-    uint8_t index = mem.read(tileMapAddr + (mapY*TILE_MAP_ROW_SIZE) + mapX);
-    Regval16 tileRowAddr;
-    if(notSigned)
-        tileRowAddr = tileDataAddr + (index * TILE_SIZE) + (tileRow * 2);
-    else
-        tileRowAddr = tileDataAddr + ((int8_t)index * TILE_SIZE) + (tileRow * 2);
-    const Regval8 lsbTileRow = mem.read(tileRowAddr);
-    const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
-    //chop pixels from leftmost tiles on screen
-    Regval8 initialMapX = scxReg / 8;
-    Regval8 numChoppedPixels = scxReg % 8;
-    Regval16 windowMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
-    bool drawingWindow = tileMapAddr == windowMapAddr;
-    if(drawingWindow || mapX != initialMapX){
-        numChoppedPixels = 0;
-    }
-    //fetch neccessary pixels
-    for(int i = 7 - numChoppedPixels; i >= 0; i--){
-        Regval8 paletteIndex = 0x00;
-        paletteIndex = (msbTileRow >> i) & 0x01;
-        paletteIndex <<= 1;
-        paletteIndex |= (lsbTileRow >> i) & 0x01;
-        bgFifo.push((PaletteIndex)paletteIndex);
-    }
-}
-
-//FIXME: Fix sprite overlapping problem 
-void Fetcher::fetchSpriteTileRow(){
-    Regval16 spriteRow = (lyReg + 16) - obj.y_pos;
-    Regval8 index = obj.tileIndex;
-    Regval16 tileRowAddr;
-    if(util::checkBit(obj.flags, Y_FLIP)){
-        if(util::checkBit(lcdcReg, LCDC_OBJ_SIZE)){
-            tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + ((15 - spriteRow) * 2);
-        }
-        else{
-            tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + ((7 - spriteRow) * 2);
-        }
-    }
-    else
-        tileRowAddr = TILE_DATA_ADDR_1 + (index * TILE_SIZE) + (spriteRow * 2);
-    const Regval8 lsbTileRow = mem.read(tileRowAddr);
-    const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
-    Regval8 choppedPixels = 0; 
-    if(obj.x_pos < 8){
-        choppedPixels = 8 - obj.x_pos;
-    }
-    //get sprite row
-    if(util::checkBit(obj.flags, X_FLIP)){
-        for(int i = choppedPixels; i <=  7; i++){
-            Regval8 paletteIndex = 0x00;
-            paletteIndex = (msbTileRow >> i) & 0x01;
-            paletteIndex <<= 1;
-            paletteIndex |= (lsbTileRow >> i) & 0x01;
-            spriteFifo.push((PaletteIndex)paletteIndex);
-        }
-    }
-    else{
-        for(int i = 7 - choppedPixels; i >= 0; i--){
-            Regval8 paletteIndex = 0x00;
-            paletteIndex = (msbTileRow >> i) & 0x01;
-            paletteIndex <<= 1;
-            paletteIndex |= (lsbTileRow >> i) & 0x01;
-            spriteFifo.push((PaletteIndex)paletteIndex);
-        }
-    }
-}
-
-
-void Fetcher::resetCycles(){
-    fetchCyclesLeft = 6;
-}
-
-void Fetcher::emulateFetchCycle(){
-    runFSM();
-}
-
-void Fetcher::beginSpriteFetch(Object obj){
-    fetchCyclesLeft = 6;
-    mode = SPRITE_FETCH;
-    clearSpriteFifo();
-    this->obj = obj;
-}
-
 void Fetcher::clearBgFifo(){
-    std::queue<PaletteIndex> empty;
+    std::vector<GbPixel> empty;
     std::swap(bgFifo, empty);
 }
 
 void Fetcher::clearSpriteFifo(){
-    std::queue<PaletteIndex> empty;
+    std::vector<GbPixel> empty;
     std::swap(spriteFifo, empty);
+}
+
+void Fetcher::clearSpriteBuffer(){
+    std::vector<GbPixel> empty;
+    std::swap(spriteBuffer, empty);
 }
 
 
@@ -173,58 +202,57 @@ Regval8 Fetcher::getSpriteFifoSize(){
 }
 
 GBPixel Fetcher::popPixel(){
-    if(bgFifo.size() <= 8){
+    if(bgFifo.size() <= TILE_WIDTH){
         throw std::logic_error("Fetcher::popPixel(): attempted pop with bgFifo size at or below 8 pixels");
     }
     GbPixel pixel;
     if(spriteFifo.size() > 0){
-        if(spriteFifo.front() == COLOR_0){
-            pixel.paletteIndex = bgFifo.front();
-            pixel.palette = BGP;
+        bool spriteIsTransparent = spriteFifo.front().paletteIndex == COLOR_0;
+        bool bgHasPriority = util::checkBit(lastFetchedObj.flags, MAP_OVER_OBJ);
+        bool bgIsOpaque = bgFifo.front().paletteIndex > COLOR_0;
+        if(spriteIsTransparent || (bgHasPriority && bgIsOpaque)){
+            pixel = bgFifo.front();
         }
-        else{
-            pixel.paletteIndex = spriteFifo.front();
-            if(util::checkBit(obj.flags, AttributeBitIndex::PALLETE_NUMBER))
-                pixel.palette = OBP1;
-            else
-                pixel.palette = OBP0;
-
-        }
-        spriteFifo.pop();
+        else
+            pixel = spriteFifo.front();
+        fifoPop(spriteFifo);
     }
     else{
-        pixel.paletteIndex = bgFifo.front();
-        pixel.palette = BGP;
+        pixel = bgFifo.front();
     }
-    bgFifo.pop();
+    fifoPop(bgFifo);
     return pixel;
 }
 
 void Fetcher::prepBgLine(){
-    fetchCyclesLeft = 6;
+    fetchCyclesLeft = NUM_FETCH_CYCLES;
     mode = MAP_FETCH;
     clearBgFifo();
+    clearSpriteBuffer();
     clearSpriteFifo();
     tileMapAddr = util::checkBit(lcdcReg, LCDC_BG_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
     tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
-    mapX = scxReg / 8; 
-    mapY = ((scyReg + lyReg) / 8) % 32; 
-    tileRow = (lyReg + scyReg) % 8;
+    mapX = scxReg / TILE_WIDTH; 
+    mapY = ((scyReg + lyReg) / TILE_WIDTH) % TILE_MAP_BORDER_LEN;  //vertically wrap around tilemap
+    mapTileRowNum = (scyReg + lyReg) % TILE_WIDTH;
+    drawingWindow = false;
 }
 
 void Fetcher::prepWinLine(){
-    fetchCyclesLeft = 6;
+    fetchCyclesLeft = NUM_FETCH_CYCLES;
     mode = MAP_FETCH;
     clearBgFifo();
     tileMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
     tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
     mapX = 0;
-    mapY = ((lyReg - winYReg) / 8);
-    tileRow = (lyReg - winYReg) % 8;
+    mapY = ((lyReg - winYReg) / TILE_WIDTH);
+    mapTileRowNum = (lyReg - winYReg) % TILE_WIDTH;
+    drawingWindow = true;
 }
 
-void Fetcher::prepSpriteFetch(){
-    fetchCyclesLeft = 6;
+void Fetcher::prepSpriteFetch(Object obj){
+    fetchCyclesLeft = NUM_FETCH_CYCLES;
     mode = SPRITE_FETCH;
-    clearSpriteFifo();
+    clearSpriteBuffer();
+    this->lastFetchedObj = obj;
 }
