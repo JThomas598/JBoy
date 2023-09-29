@@ -24,7 +24,10 @@
 TODO:
 -Fix pixel drawing to accomodate fetcher
 -Get Background drawing done first
+
 */
+
+constexpr double FRAME_RATE = 59.7;
 
 PPU::PPU() : 
     mem(PPU_PERM), 
@@ -52,7 +55,7 @@ PPU::PPU() :
     drawingWindow = false;
     state = OAM_SEARCH;
     cyclesLeft = CYCLES_PER_LINE;
-    numFrames = 0;
+    fetchCyclesLeft = 6; 
     scanX = 0;
     lastFrameTime = std::chrono::high_resolution_clock::now();
 }
@@ -65,18 +68,21 @@ PPU::~PPU(){
 
 
 void PPU::updateDisplay() {
-    const double targetFrameRate = 59.7;  // Target frame rate in frames per second
-    const std::chrono::duration<double> targetFrameDuration(1.0 / targetFrameRate);
+    const std::chrono::duration<double> targetFrameDuration(1.0 / FRAME_RATE);
+
     // Calculate time since the last frame
     std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = currentTime - lastFrameTime;
+
+    //draw frame
     Uint32* pixPtr;
     SDL_LockTexture(frameTexture, NULL, (void**)&pixPtr, &windowSurface->pitch);
     memcpy((void*)pixPtr, (void*)frameBuffer, sizeof(frameBuffer));
     SDL_UnlockTexture(frameTexture);
     SDL_RenderCopy(renderer, frameTexture, NULL, NULL);
     SDL_RenderPresent(renderer);
-    std::chrono::duration<double> sleepTime = targetFrameDuration - elapsed;
+
+    //TODO: Figure out how to make this properly sleep instead for resource/power efficency
+    //spin until frametime has passed
     while (true){
         currentTime = std::chrono::high_resolution_clock::now();
         if((currentTime - lastFrameTime) > targetFrameDuration){
@@ -87,22 +93,7 @@ void PPU::updateDisplay() {
 }
 
 void PPU::drawPixel(GbPixel pixel){
-        uint32_t rgbVal;
-        palette.update(); 
-        switch(pixel.palette){
-            case BGP:
-                rgbVal = palette.getColor(BGP, pixel.paletteIndex);
-                break;
-            case OBP0:
-                rgbVal = palette.getColor(OBP0, pixel.paletteIndex);
-                break;
-            case OBP1:
-                rgbVal = palette.getColor(OBP1, pixel.paletteIndex);
-                break;
-            default:
-                throw std::logic_error("PPU::drawPixel(): Something went horribly wrong...");
-        }
-        frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = rgbVal;
+        frameBuffer[(lyReg * SCREEN_WIDTH) + scanX] = palette.getColor(pixel.palette, pixel.paletteIndex);
         scanX++;
 }
 
@@ -112,43 +103,65 @@ void PPU::printStatus(){
     std::cout << "frame number: " << (int)numFrames << std::endl;
 }
 
-//FIXME: Fix odd sprite behavior when cut off by left side of screen
+void PPU::changeStatMode(State state){
+    switch(state){
+        case H_BLANK:
+            statReg &= ~0x03;break;
+        case V_BLANK:
+            statReg &= ~0x02;
+            statReg |= 0x01;
+            break;
+        case OAM_SEARCH:
+            statReg |= 0x02;
+            statReg &= ~0x01;
+            break;
+        case DRAW:
+            statReg |= 0x03;
+        default:
+            break;
+    }
+}
 
 void PPU::runFSM(){
     switch(state){
         case OAM_SEARCH:
             if(cyclesLeft == CYCLES_PER_LINE - OAM_CYCLES){
                 oam.searchLine(lyReg);
-                state = DRAW_BG_WIN;
+                state = DRAW;
+                changeStatMode(state);
                 break;
             }
-            statReg |= 0x03;
             cyclesLeft--;
         break;
-        case DRAW_BG_WIN:
+        case DRAW:
             if(fetcher.getBgFifoSize() > BG_FIFO_MIN){
+                //if not drawing window and within its rectangle, start drawing it
                 if(util::checkBit(lcdcReg, LCDC_WIN_EN) && scanX + 7 >= winXReg && lyReg >= winYReg && !drawingWindow){
                     drawingWindow = true;
                     fetcher.prepWinLine();
                     break;
                 }
+
+                //if a sprite occupies the current pixel, start fetching it
                 if(util::checkBit(lcdcReg, LCDC_OBJ_EN)){
                     Regval8 minX = oam.getMinX();
-                    if((scanX + 8 == minX) || (minX > 0 && minX < 8)){
-                        fetcher.beginSpriteFetch(oam.popObj());
+                    if((scanX + TILE_WIDTH == minX) || (minX > 0 && minX < TILE_WIDTH)){
+                        fetcher.prepSpriteFetch(oam.popObj());
+                        fetchCyclesLeft = NUM_FETCH_CYCLES;
                         state = FETCH_OBJ;
                         break;
                     }
                 }
+
+                //pop pixel from fetcher and draw it onto the screen
                 GbPixel pixel = fetcher.popPixel();
                 drawPixel(pixel);
                 if(scanX == SCREEN_WIDTH){
                     if(statReg & STAT_HBLANK_ENABLE_MASK){
                         intFlagReg |= LCD_STAT_INT;
-                        statReg |= STAT_LYC_FLAG_MASK;
                     }
-                    statReg &= ~0x03;
                     state = H_BLANK;
+                    changeStatMode(state);
                     oam.clearQueue();
                     break;
                 }
@@ -157,46 +170,51 @@ void PPU::runFSM(){
             fetcher.emulateFetchCycle(); 
             break;
         case FETCH_OBJ:
-            if(fetcher.getSpriteFifoSize()){
-                state = DRAW_BG_WIN;
+            if(fetcher.emulateFetchCycle()){
+                state = DRAW;
                 break; 
             }
-            fetcher.emulateFetchCycle(); 
             cyclesLeft--;
             break;
         case H_BLANK:
             if(!cyclesLeft){
+                //Go to next line and check for LYC interrupt
                 ++lyReg;
                 if((lyReg == lycReg) && (statReg & STAT_LYC_ENABLE_MASK)){
+                    statReg |= STAT_LYC_FLAG_MASK;
                     intFlagReg |= LCD_STAT_INT;
                 }
+
+                //if done scanning, transition to V_BLANK and draw frame 
                 if(lyReg == SCREEN_HEIGHT){
                     updateDisplay();
-                    numFrames++;
                     state = V_BLANK;
+                    changeStatMode(state);
+                    signal.raiseSignal(FRAME_SIGNAL);
+                    if(statReg & STAT_VBLANK_ENABLE_MASK){
+                        intFlagReg |= LCD_STAT_INT;
+                    }
                     intFlagReg |= VBLANK_INT;
-                    statReg &= ~0x02;
-                    statReg |= 0x01;
                     cyclesLeft = CYCLES_PER_LINE * 10;
-                    break;
                 }
-                fetcher.prepBgLine();
-                drawingWindow = false;
-                scanX = 0;
-                statReg |= 0x02;
-                statReg &= ~0x01;
-                state = OAM_SEARCH;
-                cyclesLeft = CYCLES_PER_LINE;
+
+                //Otherwise, prpare to draw another line
+                else{
+                    fetcher.prepBgLine();
+                    drawingWindow = false;
+                    scanX = 0;
+                    state = OAM_SEARCH;
+                    changeStatMode(state);
+                    cyclesLeft = CYCLES_PER_LINE;
+                }
                 break;
             }
             cyclesLeft--;
             break;
         case V_BLANK:
-            if(!cyclesLeft){
-                statReg |= 0x02;
-                statReg &= ~0x01;
+            if(cyclesLeft < 0){
                 state = OAM_SEARCH;
-                signal.raiseSignal(FRAME_SIGNAL);
+                changeStatMode(state);
                 lyReg = 0;
                 scanX = 0;
                 fetcher.prepBgLine();
@@ -207,9 +225,6 @@ void PPU::runFSM(){
             cyclesLeft--;
             if(cyclesLeft % CYCLES_PER_LINE == 0){
                 ++lyReg;
-                if(lyReg == 255){
-                    std::cout << "OVERFLOW" << std::endl;
-                }
             }
             break;
         default:

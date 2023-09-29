@@ -12,11 +12,9 @@
 //Rendering Constants
 
 typedef enum State{
-    DMA_TRANS,
     OAM_SEARCH,
-    DRAW_BG_WIN,
+    DRAW,
     FETCH_OBJ,
-    DRAW_OBJ,
     H_BLANK,
     V_BLANK
 }State;
@@ -56,6 +54,7 @@ class PPU{
         Regval8 trashPixelCount;
 
         Regval8 scanX;
+        int fetchCyclesLeft;
         int cyclesLeft;
         int numFrames; 
 
@@ -73,6 +72,7 @@ class PPU{
         void prepWindowLine();
         void prepSpriteFetch();
         void drawPixel(GbPixel pixel);
+        void changeStatMode(State state);
     public:
         PPU();
         ~PPU();
