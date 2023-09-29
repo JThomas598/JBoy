@@ -40,6 +40,5 @@ class Palette{
         uint32_t convertColor(Regval8 color);
     public:
         Palette();
-        void update();
         uint32_t getColor(PaletteSelect select, PaletteIndex index);
 };

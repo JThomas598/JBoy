@@ -35,33 +35,26 @@ uint32_t Palette::convertColor(Regval8 color){
     return retval;
 }
 
-void Palette::update(){
-    bgp[COLOR_0] = convertColor(bgpReg & COLOR_0_MASK);
-    bgp[COLOR_1] = convertColor((bgpReg & COLOR_1_MASK) >> 2);
-    bgp[COLOR_2] = convertColor((bgpReg & COLOR_2_MASK) >> 4);
-    bgp[COLOR_3] = convertColor((bgpReg & COLOR_3_MASK) >> 6);
-    //obp color 0 is ignored since its transparent
-    obp0[COLOR_1] = convertColor((obp0Reg & COLOR_1_MASK) >> 2);
-    obp0[COLOR_2] = convertColor((obp0Reg & COLOR_2_MASK) >> 4);
-    obp0[COLOR_3] = convertColor((obp0Reg & COLOR_3_MASK) >> 6);
-    
-    obp1[COLOR_1] = convertColor((obp1Reg & COLOR_1_MASK) >> 2);
-    obp1[COLOR_2] = convertColor((obp1Reg & COLOR_2_MASK) >> 4);
-    obp1[COLOR_3] = convertColor((obp1Reg & COLOR_3_MASK) >> 6);
-}
-
 uint32_t Palette::getColor(PaletteSelect select, PaletteIndex index){
-    std::array<uint32_t, 4> palette;
+    Regval8 regVal;
+    Regval8 mask;
     switch(select){
         case BGP:
-            palette = bgp;
-            break;
+            regVal = bgpReg; break;
         case OBP0:
-            palette = obp0;
-            break;
+            regVal = obp0Reg;break;
         case OBP1:
-            palette = obp1;
-            break;
+            regVal = obp1Reg;break;
     }
-    return palette[index];
+    switch(index){
+        case COLOR_0:
+            mask = COLOR_0_MASK;break;
+        case COLOR_1:
+            mask = COLOR_1_MASK;break;
+        case COLOR_2:
+            mask = COLOR_2_MASK;break;
+        case COLOR_3:
+            mask = COLOR_3_MASK;break;
+    }
+    return convertColor((regVal & mask) >> (2 * index));
 }
