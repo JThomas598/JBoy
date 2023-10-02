@@ -25,9 +25,9 @@ This is an emulator of the DMG-01 Gameboy, created as a personal endeavor of min
 
 **B** - K
 
-**Start** - I
+**Start** - O
 
-**Select** - O
+**Select** - I
 
 **A, B, Start, and Select Simultaneously** - Escape
 
