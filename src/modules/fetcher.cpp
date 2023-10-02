@@ -19,6 +19,7 @@ Fetcher::Fetcher() :
     winYReg(mem.getRegister(WINY_REG_ADDR))
 {
     mapX = 0;
+    pixX = 0;
     mapY = 0;
     tileMapAddr = TILE_MAP_ADDR_1;
     tileDataAddr = TILE_DATA_ADDR_1;
@@ -51,10 +52,9 @@ void Fetcher::fetchMapTileRow(){
     //chop pixels from leftmost tiles on screen
     Regval8 initialMapX = scxReg / 8;
     Regval8 numChoppedPixels = scxReg % 8;
-    if(drawingWindow || mapX != initialMapX){
+    if(drawingWindow || mapX != initialMapX){ 
         numChoppedPixels = 0;
     }
-
     //fetch neccessary pixels
     for(int i = TILE_WIDTH - 1 - numChoppedPixels; i >= 0; i--){
         GbPixel pixel;
@@ -70,8 +70,9 @@ void Fetcher::fetchSpriteTileRow(){
 
     if(util::checkBit(lastFetchedObj.flags, Y_FLIP)){
         //vertical mirroring process changes depending on sprite height
-        if(util::checkBit(lcdcReg, LCDC_OBJ_SIZE))
+        if(util::checkBit(lcdcReg, LCDC_OBJ_SIZE)){
             tileRowEquation = (((TILE_WIDTH * BYTES_PER_TILE_ROW) - spriteRowNum - 1) * BYTES_PER_TILE_ROW);
+        }
         else
             tileRowEquation = ((TILE_WIDTH - spriteRowNum - 1) * BYTES_PER_TILE_ROW);
     }
@@ -79,7 +80,10 @@ void Fetcher::fetchSpriteTileRow(){
         tileRowEquation = (spriteRowNum * BYTES_PER_TILE_ROW);
 
     //Sprite fetches always use base address 0x8000 (TILE_DATA_ADDR_1)
-    Regval16 tileRowAddr = TILE_DATA_ADDR_1 + (lastFetchedObj.tileIndex * BYTES_PER_TILE) + tileRowEquation;
+    if(util::checkBit(lcdcReg, LCDC_OBJ_SIZE)){
+        lastFetchedObj.tileIndex &= 0xFE;
+    }
+    Regval16 tileRowAddr = TILE_DATA_ADDR_1 + ((lastFetchedObj.tileIndex) * BYTES_PER_TILE) + tileRowEquation;
     const Regval8 lsbTileRow = mem.read(tileRowAddr);
     const Regval8 msbTileRow = mem.read(tileRowAddr + 1);
     
@@ -149,7 +153,7 @@ GbPixel Fetcher::fifoPop(std::vector<GbPixel>&vector){
 }
 
 
-void Fetcher::emulateFetchCycle(){
+bool Fetcher::emulateFetchCycle(){
     switch(mode){
         case MAP_FETCH:  
             //once cycles are up, try to push to fifo until successful 
@@ -158,6 +162,7 @@ void Fetcher::emulateFetchCycle(){
                     fetchMapTileRow();
                     incX();
                     fetchCyclesLeft = NUM_FETCH_CYCLES;
+                    return true;
                 }
             }
             else
@@ -168,6 +173,7 @@ void Fetcher::emulateFetchCycle(){
                 fetchSpriteTileRow();
                 mode = MAP_FETCH;
                 fetchCyclesLeft = NUM_FETCH_CYCLES;
+                return true;
             }
             else
                 fetchCyclesLeft--;
@@ -175,6 +181,7 @@ void Fetcher::emulateFetchCycle(){
         default:
             break;
     }
+    return false;
 }
 
 void Fetcher::clearBgFifo(){
@@ -210,43 +217,63 @@ GBPixel Fetcher::popPixel(){
         bool spriteIsTransparent = spriteFifo.front().paletteIndex == COLOR_0;
         bool bgHasPriority = util::checkBit(lastFetchedObj.flags, MAP_OVER_OBJ);
         bool bgIsOpaque = bgFifo.front().paletteIndex > COLOR_0;
-        if(spriteIsTransparent || (bgHasPriority && bgIsOpaque)){
+        if(spriteIsTransparent || (bgHasPriority && bgIsOpaque))
             pixel = bgFifo.front();
-        }
         else
             pixel = spriteFifo.front();
         fifoPop(spriteFifo);
     }
-    else{
+    else
         pixel = bgFifo.front();
-    }
     fifoPop(bgFifo);
+    if(++pixX == SCREEN_WIDTH){
+        pixX = 0;
+    }
     return pixel;
 }
 
 void Fetcher::prepBgLine(){
     fetchCyclesLeft = NUM_FETCH_CYCLES;
     mode = MAP_FETCH;
+
+    //clear all fifos/buffers
     clearBgFifo();
     clearSpriteBuffer();
     clearSpriteFifo();
+
+    //determine tilemap and tildedata addresses via lcdc bits
     tileMapAddr = util::checkBit(lcdcReg, LCDC_BG_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
     tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
+
+    //equations for map position to start fetch process on
     mapX = scxReg / TILE_WIDTH; 
     mapY = ((scyReg + lyReg) / TILE_WIDTH) % TILE_MAP_BORDER_LEN;  //vertically wrap around tilemap
+
+    //equation for the tile row to start on
     mapTileRowNum = (scyReg + lyReg) % TILE_WIDTH;
+
     drawingWindow = false;
 }
 
 void Fetcher::prepWinLine(){
     fetchCyclesLeft = NUM_FETCH_CYCLES;
     mode = MAP_FETCH;
+
+    //clear bg fifo only, since sprites can draw over the window
     clearBgFifo();
+
+    //equations for map position to start fetch process on
     tileMapAddr = util::checkBit(lcdcReg, LCDC_WIN_MAP_SEL) ? TILE_MAP_ADDR_2 : TILE_MAP_ADDR_1;
     tileDataAddr = util::checkBit(lcdcReg, LCDC_BG_WIN_DATA_SEL) ? TILE_DATA_ADDR_1 : TILE_DATA_ADDR_2;
+
+    //equation for the tile row to start on
+    mapTileRowNum = (scyReg + lyReg) % TILE_WIDTH;
     mapX = 0;
     mapY = ((lyReg - winYReg) / TILE_WIDTH);
+
+    //equation for the tile row to start on
     mapTileRowNum = (lyReg - winYReg) % TILE_WIDTH;
+
     drawingWindow = true;
 }
 

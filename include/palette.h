@@ -17,9 +17,9 @@ typedef enum PaletteSelect{
 
 //GB Colors
 constexpr uint32_t ARGB_BLACK = 0xFF000000;
-constexpr uint32_t ARGB_DARK_GRAY = 0xFF545454;
-constexpr uint32_t ARGB_LIGHT_GRAY = 0xFFA9A9A9;
-constexpr uint32_t ARGB_WHITE = 0xFFFFFFFF;
+constexpr uint32_t ARGB_DARK_GRAY = 0xFF346856;
+constexpr uint32_t ARGB_LIGHT_GRAY = 0xFF88c070;
+constexpr uint32_t ARGB_WHITE = 0xFFe0f8d0;
 
 class Palette{
     private:

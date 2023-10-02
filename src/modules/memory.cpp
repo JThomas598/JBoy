@@ -2,21 +2,23 @@
 #include <algorithm>
 #include <stdexcept>
 #include <iostream>
+#include <fstream>
 
 //static vars
 std::array<Regval8,UINT16_MAX+1> Memory::mem;
-std::array<std::array<Regval8, EXT_RAM_BANK_SIZE>, MBC1_NUM_RAM_BANKS> Memory::ramBanks;
+std::array<std::array<Regval8, RAM_BANK_BANK_SIZE>, MBC1_NUM_RAM_BANKS> Memory::ramBanks;
 std::array<std::array<Regval8, ROM_BANK_SIZE>, MBC1_NUM_ROM_BANKS> Memory::romBanks;
 Regval8 Memory::currRamBank;
 Regval8 Memory::currRomBank;
 Regval8 Memory::joypadBuff;
+CartType Memory::cartType;
+BankingMode Memory::mode;
 bool Memory::ramEnabled = false;
-bool Memory::ppuLock = false;
-bool Memory::dmaLock = false;
-bool Memory::vramAltered = false;
 
 constexpr Regval8 PAD_READ_MASK = 0x10; 
 constexpr Regval8 BUTTON_READ_MASK = 0x20;
+
+constexpr Regval16 CARTRIDGE_TYPE_BYTE_ADDR= 0x0147;
 
 Memory::Memory(Permission perm) : perm(perm){
     mem[JOYP_REG_ADDR] = 0xCF;
@@ -36,21 +38,27 @@ bool Memory::checkPerm(const Regval16 addr, const Access acc) const{
         inRange(addr, BAD_ZONE_START, BAD_ZONE_END))){
         return false;
     }
-    else if(perm == CPU_PERM){
-        if(dmaLock && !inRange(addr, HRAM_START, HRAM_END)){
-            throw std::logic_error("Memory::checkPerm(): Illegal CPU access during DMA transfer");
-        }
-        else if(ppuLock && inRange(addr, VRAM_START, VRAM_END)){
-            throw std::logic_error("Memory::checkPerm(): Illegal CPU access to VRAM during pixel transfer");
-        }
-    }
     return true;
+}
+
+void Memory::saveRamState(std::string file){
+    std::ofstream outFile(file, std::ios_base::out | std::ios_base::binary);
+    int bankBytesWritten = 0;
+    int bankNum = 0;
+    while(bankNum < MBC1_NUM_RAM_BANKS){
+        while(bankBytesWritten < RAM_BANK_BANK_SIZE){
+            outFile.write((char*)ramBanks[bankNum].data(), RAM_BANK_BANK_SIZE);
+            long currBytesWritten = outFile.tellp(); 
+            bankBytesWritten += currBytesWritten - bankBytesWritten;
+        }
+        bankBytesWritten = 0;
+        bankNum++;
+    }
 }
 
 void Memory::prepJoypadRead(const Regval8 byte) const{
     if(!(byte & (BUTTON_READ_MASK | PAD_READ_MASK))){
-        std::cout << "byte: " << (int)byte << std::endl;
-        throw std::invalid_argument("Joypad::prepRead(): attempted read with invalid joypad selection value.");
+        return;
     }
     if(byte & ~PAD_READ_MASK){
         mem[JOYP_REG_ADDR] = (joypadBuff & ALL_PAD_MASK);
@@ -75,18 +83,33 @@ bool Memory::write(const Regval16 addr, const Regval8 byte) const{
         return false;
     if(addr == JOYP_REG_ADDR)
         prepJoypadRead(byte);
-    else if(inRange(addr, EXT_RAM_ENABLE_START, EXT_RAM_ENABLE_END) && (byte & 0x0A) == 0x0A){
-        ramEnabled = true;
+    else if(inRange(addr, RAM_BANK_ENABLE_START, RAM_BANK_ENABLE_END)){
+        ramEnabled = (byte & 0x0A) == 0x0A ? mode = ADVANCED : mode = SIMPLE;
     }
     else if(inRange(addr, RAM_BANK_SELECT_START, RAM_BANK_SELECT_END)){
         currRamBank = byte & 0x03;
     }
     else if(inRange(addr, ROM_BANK_SELECT_START, ROM_BANK_SELECT_END)){
-        currRomBank = byte & 0x1F;
+        switch(cartType){
+            case ROM_ONLY:
+            case MBC1:
+            case MBC1_RAM:
+            case MBC1_RAM_BATTERY:
+                currRomBank = byte & 0x1F;
+            case MBC3_TIMER_BATTERY:
+            case MBC3_TIMER_RAM_BATTERY:
+            case MBC3:
+            case MBC3_RAM:
+            case MBC3_RAM_BATTERY:
+                currRomBank = byte & 0x7F;
+                break;
+            default:
+                break;
+        }
         if(currRomBank == 0){currRomBank = 1;}
     }
-    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END) && ramEnabled){
-        ramBanks[currRamBank][addr - EXT_RAM_START] = byte;
+    else if(inRange(addr, RAM_BANK_START, RAM_BANK_END) && ramEnabled){
+        ramBanks[currRamBank][addr - RAM_BANK_START] = byte;
     }
     else{
         mem[addr] = byte;
@@ -95,15 +118,19 @@ bool Memory::write(const Regval16 addr, const Regval8 byte) const{
 }
 
 Regval8 Memory::read(const Regval16 addr) const{
-    if(!checkPerm(addr, READ)){
-        return 0xFF;
-    }
-    else if(inRange(addr, EXT_RAM_START, EXT_RAM_END) && ramEnabled){
-        return ramBanks[currRamBank][addr - EXT_RAM_START];
-        std::cout << "reading ram bank" << std::endl;
-    }
-    else if(inRange(addr, ROM_BANK_N_START, ROM_BANK_N_END)){
+    /*
+    if(inRange(addr, ROM_BANK_0_START, ROM_BANK_0_END)){
         return romBanks[currRomBank][addr - ROM_BANK_N_START];
+    }
+    */
+    if(inRange(addr, ROM_BANK_N_START, ROM_BANK_N_END)){
+        return romBanks[currRomBank][addr - ROM_BANK_N_START];
+    }
+    else if(inRange(addr, RAM_BANK_START, RAM_BANK_END)){
+        if(mode != ADVANCED && currRamBank > 0){
+            throw std::logic_error("Memory::read(): Attempted access to ram bank other than bank 0 in simple mode.");
+        }
+        return ramBanks[currRamBank][addr - RAM_BANK_START];
     }
     return mem[addr];
 }
@@ -126,32 +153,37 @@ Regval16 Memory::copyRomBank(const Regval8* buf, const int bankNum){
     return bytes_written;
 }
 
+Regval16 Memory::copyRamBank(const Regval8* buf, const int bankNum){
+    size_t bytes_written = 0;
+    while(bytes_written < RAM_BANK_BANK_SIZE){
+        ramBanks[bankNum][bytes_written] = buf[bytes_written];
+        bytes_written++;
+    }
+    return bytes_written;
+}
+
 Register Memory::getRegister(Regval16 addr){
     return mem[addr];
 }
 
-bool Memory::lockVram(){
-    if(perm == PPU_PERM){
-        ppuLock = true;
-        return true;
+void Memory::resolveCartridgeType(){
+    switch(mem[CARTRIDGE_TYPE_BYTE_ADDR]){
+        case ROM_ONLY:
+        case MBC1:
+        case MBC1_RAM:
+        case MBC1_RAM_BATTERY:
+            cartType = MBC1;
+            break;
+        case MBC3_TIMER_BATTERY:
+        case MBC3_TIMER_RAM_BATTERY:
+        case MBC3:
+        case MBC3_RAM:
+        case MBC3_RAM_BATTERY:
+            cartType = MBC3;
+            break;
+        default:
+            throw std::logic_error("Memory::resolveCartridgeType(): Cartridge type not yet supported.");
     }
-    return false;
-}
-
-bool Memory::unlockVram(){
-    if(perm == PPU_PERM){
-        ppuLock = false;
-        return true;
-    }
-    return false;
-}
-
-bool Memory::vramChange(){
-    return vramAltered;
-}
-
-void Memory::resetChange(){
-    vramAltered = false;
 }
 
 void Memory::printStatus(){

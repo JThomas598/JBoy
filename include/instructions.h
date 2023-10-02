@@ -1,7 +1,9 @@
-#include <stdint.h>
 
 #ifndef INSTRUCTIONS_H
 #define INSTRUCTIONS_H
+#include <stdint.h>
+#include <array>
+#include <string>
 //MISCELLANEOUS===========================================================
 constexpr uint8_t NOP = 0x00;
 constexpr uint8_t STOP = 0x10;

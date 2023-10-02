@@ -6,7 +6,10 @@
 #include <stdexcept>
 
 bool comp(const Object& obj1, const Object& obj2){
-    return obj1.x_pos > obj2.x_pos;
+    if(obj1.x_pos != obj2.x_pos)
+        return obj1.x_pos > obj2.x_pos;
+    else
+        return obj1.entryNum > obj2.entryNum;
 }
 
 OAM::OAM() :
@@ -18,17 +21,18 @@ Regval8 OAM::searchLine(const Regval8 lineNum){
     //remember to include logic for 8 x 16 sprites later
     Regval16 objEntryPtr = OAM_START;
     int numDetections = 0;
+    const Regval8 objHeight = util::checkBit(lcdcReg, LCDC_OBJ_SIZE) ? 16 : 8;
     for(int i = 0; i < OBJECT_MAX; i++){
         //yPos is first byte of obj entry
         const Regval8 yPos = mem.read(objEntryPtr);  
         const Regval8 xPos = mem.read(objEntryPtr + 1);
-        const Regval8 objHeight = util::checkBit(lcdcReg, LCDC_OBJ_SIZE) ? 16 : 8;
         bool horVisible = xPos > 0 && xPos < 168;
         bool vertVisible = lineNum + 16 >= yPos && lineNum + 16 < yPos + objHeight;
         if(horVisible && vertVisible){
             Object obj;
-            obj.y_pos = mem.read(objEntryPtr),
-            obj.x_pos = mem.read(objEntryPtr + 1),
+            obj.y_pos = yPos;
+            obj.x_pos = xPos;
+            obj.entryNum = i;
             obj.tileIndex = mem.read(objEntryPtr + 2),
             obj.flags = mem.read(objEntryPtr + 3);
             visibleObjs.push_back(obj);

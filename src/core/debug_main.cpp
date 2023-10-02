@@ -1,4 +1,6 @@
 #define SDL_MAIN_HANDLED 1
+#include "debugger.h"
+#include "signal.h"
 #include <stdio.h>
 #include <sstream>
 #include <SDL2/SDL.h>
@@ -6,9 +8,6 @@
 #include <iomanip>
 #include <stdbool.h>
 #include <cstring>
-#include "debugger.h"
-#include "signal.h"
-#include "instructions.h"
 
 using namespace std;
 
@@ -126,7 +125,7 @@ void parseCommand(string s, string& com, Regval16& numArg, string& strArg){
     }
     istringstream iss(s);
     if(iss >> com){
-        if(com == "break" || com == "next" || com == "read"){
+        if(com == "break" || com == "next" || com == "n" || com == "read"){
            if(!(iss >> std::hex >> numArg)){
                 throw std::invalid_argument("[ERROR] Invalid or non-existent argument to given command.");
             }

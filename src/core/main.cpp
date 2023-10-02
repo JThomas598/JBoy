@@ -8,6 +8,7 @@ using namespace std;
 
 int handleEvent(SDL_Event* event, Gameboy& gb);
 void handleJoypadEvent(SDL_KeyboardEvent* key);
+string omitFileExt(const std::string& filepath);
 int timedPollEvent();
 
 constexpr int EVENT_POLLS_PER_SEC = 100;
@@ -27,6 +28,7 @@ int main(int argc, char** argv){
     Gameboy gb;
     try{
         gb.loadGame(argv[1]);
+        gb.loadSram(omitFileExt(argv[1]) + ".sav");
     }
     catch(std::exception&e){
         cout << e.what();
@@ -35,11 +37,10 @@ int main(int argc, char** argv){
     while(true){ 
         if(signal.signalRaised(FRAME_SIGNAL)){
             SDL_Event event;
-            if(SDL_PollEvent(&event)){
-                if(handleEvent(&event, gb) == QUIT){
-                   SDL_Quit();
-                   return 0; 
-                }
+            if(SDL_PollEvent(&event) && handleEvent(&event, gb) == QUIT){
+                gb.saveSram(omitFileExt(argv[1]) + ".sav"); 
+                SDL_Quit();
+                return 0; 
             }
         }
         try{
@@ -52,17 +53,6 @@ int main(int argc, char** argv){
     }
 }
 
-int timedPollEvent(){
-    static std::chrono::high_resolution_clock::time_point lastPollTime = std::chrono::high_resolution_clock::now();
-    const std::chrono::duration<double> timeBetweenPolls(1.0 / EVENT_POLLS_PER_SEC);
-    std::chrono::high_resolution_clock::time_point currentPollTime = std::chrono::high_resolution_clock::now();
-    currentPollTime = std::chrono::high_resolution_clock::now();
-    if((currentPollTime - lastPollTime) > timeBetweenPolls){
-        lastPollTime = currentPollTime;
-    }
-    return CONTINUE;
-}
-
 int handleEvent(SDL_Event* event, Gameboy& gb){
     switch(event->type){
         case SDL_QUIT:
@@ -73,7 +63,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
             Regval8 currState = gb.getJoypad();
             Regval8 newState;
             switch(keyEvent.keysym.sym){
-                case SDLK_LEFT:
+                case SDLK_a:
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~LEFT_PAD_MASK;
                     }
@@ -81,7 +71,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | LEFT_PAD_MASK;
                     }
                     break;
-                case SDLK_RIGHT:   
+                case SDLK_d:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~RIGHT_PAD_MASK;
                     }
@@ -89,7 +79,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | RIGHT_PAD_MASK;
                     }
                     break;
-                case SDLK_UP:   
+                case SDLK_w:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~UP_PAD_MASK;
                     }
@@ -97,7 +87,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | UP_PAD_MASK;
                     }
                     break;
-                case SDLK_DOWN:   
+                case SDLK_s:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~DOWN_PAD_MASK;
                     }
@@ -105,7 +95,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | DOWN_PAD_MASK;
                     }
                     break;
-                case SDLK_s:   
+                case SDLK_l:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~A_BUTTON_MASK;
                     }
@@ -113,7 +103,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | A_BUTTON_MASK;
                     }
                     break;
-                case SDLK_a:   
+                case SDLK_k:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~B_BUTTON_MASK;
                     }
@@ -121,7 +111,7 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | B_BUTTON_MASK;
                     }
                     break;
-                case SDLK_SLASH:   
+                case SDLK_i:   
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~SELECT_BUTTON_MASK;
                     }
@@ -129,12 +119,20 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
                         newState = currState | SELECT_BUTTON_MASK;
                     }
                     break;
-                case SDLK_PERIOD:   
+                case SDLK_o:
                     if(keyEvent.type == SDL_KEYDOWN){
                         newState = currState & ~START_BUTTON_MASK;
                     }
                     else{
                         newState = currState | START_BUTTON_MASK;
+                    }
+                    break;
+                case SDLK_ESCAPE:
+                    if(keyEvent.type == SDL_KEYDOWN){
+                        newState = currState & ~ALL_BUTTON_MASK;
+                    }
+                    else{
+                        newState = currState |= ALL_BUTTON_MASK;
                     }
                     break;
                 default:
@@ -144,4 +142,12 @@ int handleEvent(SDL_Event* event, Gameboy& gb){
             gb.setJoypad(newState); 
     }
     return CONTINUE;
+}
+
+string omitFileExt(const std::string& filepath){
+    size_t periodPos = filepath.find_last_of('.');
+    if(periodPos == string::npos){
+        return "";
+    }
+    return filepath.substr(0, periodPos);
 }

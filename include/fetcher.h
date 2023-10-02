@@ -46,6 +46,7 @@ class Fetcher{
 
         Regval8 mapX;
         Regval8 mapY;
+        Regval8 pixX;
         Regval8 mapTileRowNum;
         Regval16 tileMapAddr;
         Regval16 tileDataAddr;
@@ -69,7 +70,7 @@ class Fetcher{
 
     public:
         Fetcher();
-        void emulateFetchCycle();
+        bool emulateFetchCycle();
         Regval8 getBgFifoSize();
         Regval8 getSpriteFifoSize();
         GBPixel popPixel();

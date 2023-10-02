@@ -1,5 +1,6 @@
 #include "memory.h"
 #include "counters.h"
+#include <iostream>
 
 constexpr int DIV_CYCLES_PER_INC = 16384;
 
@@ -36,7 +37,7 @@ void Counters::emulateCycle(){
     }
     else
         divCycleCount++;
-    int intervalLen;
+    int intervalLen = 0;
     switch(tacReg & INPUT_CLOCK_MASK){
         case SPEED_0:
             intervalLen = 1024;
@@ -50,13 +51,18 @@ void Counters::emulateCycle(){
         case SPEED_3:
             intervalLen = 256;
             break;
+        default: break;
     }
-    timaCycleCount++;
-    if(timaCycleCount % intervalLen == 0 && timaCycleCount != 0 && tacReg & TIMER_ENABLE_MASK){
-        timaReg++;
-        if(!timaReg){
-            intFlagReg |= TIMER_INT;
-            timaReg = tmaReg;
+    if(tacReg & TIMER_ENABLE_MASK){
+        if(timaCycleCount == intervalLen){
+            timaReg++;
+            if(!timaReg){
+                intFlagReg |= TIMER_INT;
+                timaReg = tmaReg;
+            }
+            timaCycleCount = 0;
         }
+        else
+            timaCycleCount++;
     }
 }

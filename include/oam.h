@@ -5,6 +5,7 @@
 typedef struct Object{
     Regval8 y_pos;
     Regval8 x_pos;
+    Regval8 entryNum;
     Regval8 tileIndex;
     Regval8 flags;
 }Object;

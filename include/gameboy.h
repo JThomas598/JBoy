@@ -54,7 +54,8 @@ class Gameboy{
         void clearInterrupt(Regval8 mask);
         void handleInterrupt();
     public:
-        void loadBootRom();
+        bool loadSram(std::string filename);
+        void saveSram(std::string filename);
         Gameboy();
         /**
             @brief Loads the game into program memory.

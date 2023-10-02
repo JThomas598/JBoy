@@ -1,10 +1,11 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include "gb_types.h"
 #include <cstdint>
 #include <cstddef>
 #include <array>
-#include "gb_types.h"
+#include <string>
 
 //Write Permissions
 typedef enum Perm{
@@ -22,9 +23,35 @@ typedef enum Access{
     WRITE
 }Access;
 
+//Cartridge Types
+typedef enum CartType{
+    ROM_ONLY,
+    MBC1,
+    MBC1_RAM,
+    MBC1_RAM_BATTERY,
+    MBC2,
+    MBC2_BATTERY,
+    ROM_RAM = 0x08,
+    ROM_RAM_BATTERY,
+    MMM_01 = 0x0B,
+    MMM_01_RAM,
+    MMM_01_RAM_BATTERY,
+    MBC3_TIMER_BATTERY = 0x0F,
+    MBC3_TIMER_RAM_BATTERY,
+    MBC3,
+    MBC3_RAM,
+    MBC3_RAM_BATTERY
+}CartType;
+
+//Banking Modes
+typedef enum BankingMode{
+    SIMPLE,
+    ADVANCED
+}BankingMode;
+
 //Key Memory Map Boundaries
-constexpr Regval16 EXT_RAM_ENABLE_START = 0x0000;
-constexpr Regval16 EXT_RAM_ENABLE_END = 0x1FFF;
+constexpr Regval16 RAM_BANK_ENABLE_START = 0x0000;
+constexpr Regval16 RAM_BANK_ENABLE_END = 0x1FFF;
 
 constexpr Regval16 ROM_BANK_SELECT_START = 0x2000;
 constexpr Regval16 ROM_BANK_SELECT_END = 0x3FFF;
@@ -38,11 +65,14 @@ constexpr Regval16 BANKING_MODE_SELECT_END = 0x7FFF;
 constexpr Regval16 RAM_ENABLE_START = 0x0000;
 constexpr Regval16 RAM_ENABLE_END = 0x1FFF;
 
+constexpr Regval16 ROM_BANK_0_START = 0x0000;
+constexpr Regval16 ROM_BANK_0_END = 0x3FFF;
+
 constexpr Regval16 ROM_BANK_N_START = 0x4000;
 constexpr Regval16 ROM_BANK_N_END = 0x7FFF;
 
-constexpr Regval16 EXT_RAM_START = 0xA000;
-constexpr Regval16 EXT_RAM_END = 0xBFFF;
+constexpr Regval16 RAM_BANK_START = 0xA000;
+constexpr Regval16 RAM_BANK_END = 0xBFFF;
 
 constexpr Regval16 ECHO_START = 0xE000;
 constexpr Regval16 ECHO_END = 0xFDFF;
@@ -115,7 +145,7 @@ constexpr Regval8 UP_PAD_MASK = 0x40;
 constexpr Regval8 DOWN_PAD_MASK = 0x80;
 constexpr Regval8 ALL_PAD_MASK = 0xF0;
 
-constexpr int EXT_RAM_BANK_SIZE = 8192;
+constexpr int RAM_BANK_BANK_SIZE = 8192;
 constexpr int ROM_BANK_SIZE = 16384;
 constexpr int MBC1_NUM_RAM_BANKS = 4;
 constexpr int MBC1_NUM_ROM_BANKS = 128;
@@ -123,15 +153,16 @@ constexpr int MBC1_NUM_ROM_BANKS = 128;
 class Memory{
     private:
         static std::array<Regval8,UINT16_MAX+1> mem;
-        static std::array<std::array<Regval8, EXT_RAM_BANK_SIZE>, MBC1_NUM_RAM_BANKS> ramBanks;
+        static std::array<std::array<Regval8, RAM_BANK_BANK_SIZE>, MBC1_NUM_RAM_BANKS> ramBanks;
         static std::array<std::array<Regval8, ROM_BANK_SIZE>, MBC1_NUM_ROM_BANKS> romBanks;
+        static const Regval8 numRamBanks;
+        static const Regval8 numRomBanks;
         static Regval8 currRamBank;
         static Regval8 currRomBank;
         static bool ramEnabled;
-        static bool ppuLock;
-        static bool dmaLock;
-        static bool vramAltered;
         static Regval8 joypadBuff;
+        static BankingMode mode;
+        static CartType cartType;
         const Permission perm;
 
         bool inRange(const Regval16 addr, const Regval16 low, const Regval16 hi) const;
@@ -178,6 +209,16 @@ class Memory{
      */
         Regval16 copyRomBank(const Regval8* buf, const int bankNum);
     /**
+     * @brief dumps n bytes from buf, starting from addr in memory
+     * 
+     * @param addr starting point of dump
+     * 
+     * @param n number of bytes to dump
+     * 
+     * @return number of bytes written 
+     */
+        Regval16 copyRamBank(const Regval8* buf, const int bankNum);
+    /**
      * @brief forbids all but HRAM accesses for the CPU. Only Memory instances with the DMA perm can do this.
      * 
      * @return true if lock is successful, false if it isn't.
@@ -210,9 +251,9 @@ class Memory{
      * @return reference to requested memory location
      */
         Register getRegister(Regval16 addr);
+        void saveRamState(std::string file);
+        void resolveCartridgeType();
         bool unlockVram();
-        bool vramChange();
-        void resetChange();
         void printStatus();
 };
 #endif

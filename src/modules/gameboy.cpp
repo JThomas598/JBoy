@@ -19,6 +19,8 @@ void Gameboy::printStatus(){
     cout << "---OPCODE---" << endl << opcode_names[opcode] << endl;
     cout << "-----PPU----" << endl;
     ppu.printStatus();
+    cout << "---MEMORY---" << endl;
+    mem.printStatus();
 }
 
 size_t Gameboy::loadGame(std::string filename){
@@ -37,22 +39,55 @@ size_t Gameboy::loadGame(std::string filename){
         mem.dump(totalRead, (Regval8*)buf, currRead);
         totalRead += currRead;
     }
-    printf("[INFO] ROM Bank %d read successfully. Size: %d bytes\n",currBank, totalRead);
+    mem.resolveCartridgeType(); 
     totalRead = 0;
     currBank++;
     //Read in switchable banks
     while(!game.eof()){
         while(totalRead != ROM_BANK_SIZE && !game.eof()){
-            game.read(buf, ROM_BANK_SIZE);
+            game.read(buf + totalRead, ROM_BANK_SIZE - totalRead);
             currRead = game.gcount();
             totalRead += currRead;
-            mem.copyRomBank((Regval8*)buf, currBank);
         }
-        printf("[INFO] ROM Bank %d read successfully. Size: %d bytes\n",currBank, totalRead);
+        mem.copyRomBank((Regval8*)buf, currBank);
         currBank++;
         totalRead = 0;
     }
+    printf("[INFO] Rom banks loaded successfully.\n");
+    game.close();
     return totalRead;
+}
+
+bool Gameboy::loadSram(std::string filename){
+    char buf[RAM_BANK_BANK_SIZE];
+    ifstream storage(filename, ios_base::in | ios_base::binary);
+    if(storage.fail()){
+        return false;
+    }
+    int totalRead = 0;
+    int currRead = 0;
+    int currBank = 0;
+    while(!storage.eof()){
+        while(totalRead != RAM_BANK_BANK_SIZE && !storage.eof()){
+            storage.read(buf, RAM_BANK_BANK_SIZE - totalRead);
+            currRead = storage.gcount();
+            totalRead += currRead;
+            mem.copyRamBank((Regval8*)buf, currBank);
+        }
+        currBank++;
+        totalRead = 0;
+    }
+    printf("[INFO] SRAM loaded successfully.\n");
+    return true;
+}
+
+void Gameboy::saveSram(std::string filename){
+    ofstream storage(filename, ios_base::out | ios_base::binary);
+    if(storage.fail()){
+        std::cout << "failed to save game..." << std::endl;
+        return;
+    }
+    mem.saveRamState(filename);
 }
 
 void Gameboy::clearInterrupt(Regval8 mask){
@@ -92,15 +127,18 @@ void Gameboy::handleInterrupt(){
 }
 
 Regval16 Gameboy::emulateCycle(){
-    static int numCycles = 0;
-    numCycles++;
+    static int numCycles = 1;
     if(numCycles % 4 == 0){
         runFSM();
+        numCycles = 1;
+    }
+    else{
+        numCycles++;
     }
     dma.emulateCycle();
     ppu.emulateCycle();
     counters.emulateCycle();
-    printSerial();
+    //printSerial();
     return cpu.getPC();
 }
 
@@ -946,7 +984,6 @@ void Gameboy::runFSM(){
         case HALT:
             break;
         case STOP:
-            //TODO
             break; 
         case DI:
             IME = false;

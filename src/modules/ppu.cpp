@@ -106,7 +106,8 @@ void PPU::printStatus(){
 void PPU::changeStatMode(State state){
     switch(state){
         case H_BLANK:
-            statReg &= ~0x03;break;
+            statReg &= ~0x03;
+            break;
         case V_BLANK:
             statReg &= ~0x02;
             statReg |= 0x01;
@@ -117,6 +118,7 @@ void PPU::changeStatMode(State state){
             break;
         case DRAW:
             statReg |= 0x03;
+            break;
         default:
             break;
     }
@@ -145,7 +147,7 @@ void PPU::runFSM(){
                 //if a sprite occupies the current pixel, start fetching it
                 if(util::checkBit(lcdcReg, LCDC_OBJ_EN)){
                     Regval8 minX = oam.getMinX();
-                    if((scanX + TILE_WIDTH == minX) || (minX > 0 && minX < TILE_WIDTH)){
+                    if((scanX + TILE_WIDTH  == minX) || (minX > 0 && minX < TILE_WIDTH)){
                         fetcher.prepSpriteFetch(oam.popObj());
                         fetchCyclesLeft = NUM_FETCH_CYCLES;
                         state = FETCH_OBJ;
@@ -179,6 +181,7 @@ void PPU::runFSM(){
         case H_BLANK:
             if(!cyclesLeft){
                 //Go to next line and check for LYC interrupt
+                drawingWindow = false;
                 ++lyReg;
                 if((lyReg == lycReg) && (statReg & STAT_LYC_ENABLE_MASK)){
                     statReg |= STAT_LYC_FLAG_MASK;
@@ -189,19 +192,19 @@ void PPU::runFSM(){
                 if(lyReg == SCREEN_HEIGHT){
                     updateDisplay();
                     state = V_BLANK;
-                    changeStatMode(state);
                     signal.raiseSignal(FRAME_SIGNAL);
                     if(statReg & STAT_VBLANK_ENABLE_MASK){
                         intFlagReg |= LCD_STAT_INT;
                     }
                     intFlagReg |= VBLANK_INT;
                     cyclesLeft = CYCLES_PER_LINE * 10;
+                    //FIXME: Changing stat reg to VBLANK mode breaks Dr. Mario
+                    //changeStatMode(state);
                 }
 
                 //Otherwise, prpare to draw another line
                 else{
                     fetcher.prepBgLine();
-                    drawingWindow = false;
                     scanX = 0;
                     state = OAM_SEARCH;
                     changeStatMode(state);
@@ -212,13 +215,12 @@ void PPU::runFSM(){
             cyclesLeft--;
             break;
         case V_BLANK:
-            if(cyclesLeft < 0){
+            if(cyclesLeft <= 0){
                 state = OAM_SEARCH;
                 changeStatMode(state);
                 lyReg = 0;
                 scanX = 0;
                 fetcher.prepBgLine();
-                drawingWindow = false;
                 cyclesLeft = CYCLES_PER_LINE;
                 break;
             }
