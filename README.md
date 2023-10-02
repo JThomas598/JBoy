@@ -1,2 +1,16 @@
-# GameboyEmulator
-An emulator of the original Gameboy, capable of running any rom formatted for the system.
+# Jboy
+This is an emulator of the DMG-01 Gameboy, created as a personal endeavor of mine. It is currently incomplete, lacking audio and only being able to run MBC 1 and MBC 3 carts (and those lacking a memory bank controller all together).
+
+### Installation
+1. Download the zip starting with "jboy" in the earliest release
+2. Extract the zip file
+### Running a Game
+1. Navigate to the extracted folder
+2. Open a terminal within the extracted folder
+3. Type this command:
+
+     ```
+     ./emu <path to rom you obtained by entirely legal means>
+     ```
+
+
