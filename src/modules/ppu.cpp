@@ -39,7 +39,7 @@ PPU::PPU() :
     winYReg(mem.getRegister(WINY_REG_ADDR)),
     winXReg(mem.getRegister(WINX_REG_ADDR))
 {
-    window = SDL_CreateWindow("JK EMU", 
+    window = SDL_CreateWindow("JBoy", 
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         WIN_DIMENSION_SCALE_FACTOR * SCREEN_WIDTH,
