@@ -10,7 +10,7 @@ This is an emulator of the DMG-01 Gameboy, created as a personal endeavor of min
 3. Type this command:
 
      ```
-     ./emu <path to rom you obtained by entirely legal means>
+     .\emu <path to rom you obtained by entirely legal means>
      ```
 ### Controls
 **Left** - A
