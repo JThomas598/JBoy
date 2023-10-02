@@ -12,5 +12,22 @@ This is an emulator of the DMG-01 Gameboy, created as a personal endeavor of min
      ```
      ./emu <path to rom you obtained by entirely legal means>
      ```
+### Controls
+**Left** - A
 
+**Right** - D
+
+**Down** - S
+
+**Up** - W
+
+**A** - K
+
+**B** - L
+
+**Start** - I
+
+**Select** - O
+
+**A, B, Start, and Select Simultaneously** - Escape
 
