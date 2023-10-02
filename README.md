@@ -31,7 +31,7 @@ This is an emulator of the DMG-01 Gameboy, created as a personal endeavor of min
 
 **A, B, Start, and Select Simultaneously** - Escape
 
-###Some Playable Titles
+### Some Playable Titles
 - Pokemon Red, Blue, and Green
 - Zelda: Links Awakening
 - Tetris
